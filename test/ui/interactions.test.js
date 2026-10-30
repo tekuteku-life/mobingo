@@ -86,3 +86,17 @@ test('R-12: 不正保存値をDOMに描画しない', async () => {
 		assert.deepEqual(page.errors, []);
 	} finally { await page.close(); }
 });
+
+test('R-14: 844×390のセットアップに実wheelでスクロール到達できる',async()=>{
+	const page=await browser.page({width:844,height:390});
+	try{
+		for(const selector of ['#btn-select-host','#btn-host-proceed']){
+			await page.wait('!!document.querySelector(".setup-screen")');
+			await page.cdp.send('Input.dispatchMouseEvent',{type:'mouseWheel',x:420,y:250,deltaX:0,deltaY:800});
+			await page.wait('document.querySelector(".setup-screen").scrollTop>0');
+			assert.ok(await page.eval(`(()=>{const e=document.querySelector('${selector}'),r=e.getBoundingClientRect(),h=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return r.top>=48&&r.bottom<=innerHeight&&(h===e||e.contains(h));})()`));
+			await page.click(selector);
+		}
+		await page.wait('!!document.querySelector("#slide-thumb")');assert.deepEqual(page.errors,[]);
+	}finally{await page.close();}
+});

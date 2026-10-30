@@ -73,7 +73,7 @@ test('R-09: モードAの集計・次球予告・成立者ID・逆ビンゴ賞',
 			const text=await page.eval('document.querySelector("#app-main").textContent');
 			assert.match(text,new RegExp(`総リーチ[^0-9]*${expected.reduce((sum,s)=>sum+s.reach,0)}`));
 			for(let i=0;i<seeds.length;i++){
-				if(expected[i].hot) assert.match(text,new RegExp(seeds[i]));
+				if(expected[i].hot) assert.match(text,new RegExp(`予告.*\\(${expected.filter(s=>s.hot).length}名\\)`));
 				if(expected[i].bingo) assert.match(text,new RegExp(seeds[i]));
 			}
 			await page.click('#btn-dobe-award');
@@ -91,5 +91,45 @@ test('R-02/09: モード切替で入力中の開催IDを保持する',async()=>{
 		await page.click('#btn-select-host');await page.input('#host-seed-input','ABCD');await page.click('#opt-mode-a');
 		assert.equal(await page.eval('document.querySelector("#host-seed-input").value'),'ABCD');
 		await page.click('#opt-mode-b');assert.equal(await page.eval('document.querySelector("#host-seed-input").value'),'ABCD');
+	}finally{await page.close();}
+});
+
+test('R-09/16: 受付確定中は一覧を固定し導出完了後だけ保存する',async()=>{
+	const page=await browser.page({setup:`window.cardPending=[];const derive=crypto.subtle.deriveBits.bind(crypto.subtle);crypto.subtle.deriveBits=async(...args)=>{const result=await derive(...args);if(!new TextDecoder().decode(args[0].salt).includes('mobingo:card'))return result;return new Promise(resolve=>window.cardPending.push(()=>resolve(result)));};`});
+	try{
+		await page.click('#btn-select-host');await page.click('#opt-mode-a');await page.click('#btn-host-proceed');
+		await page.input('#scanner-manual-input','ABCD');await page.click('#scanner-manual-form button');await page.click('#scanner-finish-btn');
+		await page.wait('window.cardPending.length===1');
+		for(const selector of ['#scanner-manual-input','#scanner-manual-form button','.remove-chip-btn','#scanner-back-btn','#scanner-finish-btn'])assert.equal(await page.eval(`document.querySelector('${selector}').disabled`),true,selector);
+		assert.equal(await page.eval('localStorage.getItem("mobingo_parent_state")'),null);
+		await page.eval('window.cardPending.shift()()');await page.wait('!!document.querySelector("#slide-thumb")');
+		assert.deepEqual(await page.eval('JSON.parse(localStorage.mobingo_parent_state).registeredChildSeeds'),['ABCD']);assert.deepEqual(page.errors,[]);
+	}finally{await page.close();}
+});
+
+for(const [letter,min,max]of[['B',1,15],['I',16,30]]){
+	test(`R-08: ${letter}列の球・特殊役解禁済み投影`,async()=>{
+		const sequence=await generateDrawSequence('1234');const turn=sequence.findIndex(number=>number>=min&&number<=max)+1;
+		const page=await host(hostState(turn,{specialRuleTurn:0}));
+		try{
+			assert.match(await page.eval('document.querySelector("#latest-ball-tag").textContent'),new RegExp(letter));
+			await page.click('#btn-unlock-special');assert.equal(await page.eval('JSON.parse(localStorage.mobingo_parent_state).specialRuleTurn'),0);
+			await page.click('#btn-projector');assert.match(await page.eval('document.querySelector("#projector-view").textContent'),/特殊役解禁中/);await page.click('#close-proj-btn');
+			await page.click('#btn-toggle-matrix');assert.equal(await page.eval('document.querySelector("#full-matrix-panel").style.display'),'grid');await page.click('#btn-toggle-matrix');
+			assert.deepEqual(page.errors,[]);
+		}finally{await page.close();}
+	});
+}
+
+test('R-09/11: 特殊役解禁済みのモードAを再開する',async()=>{
+	const page=await host(hostState(75,{mode:'mode_a',specialRuleTurn:0,registeredChildSeeds:['ABCD']}));
+	try{assert.match(await page.eval('document.querySelector("#host-bingo-winners").textContent'),/ABCD/);assert.match(await page.eval('document.querySelector("#app-main").textContent'),/総リーチ: 0/);assert.deepEqual(page.errors,[]);}finally{await page.close();}
+});
+
+test('R-08: Undo完了後の旧ボタンへ再配送しても0手未満に戻さない',async()=>{
+	const page=await host(hostState(1));
+	try{
+		await page.eval('window.oldUndo=document.querySelector("#btn-undo-ball")');await page.click('#btn-undo-ball');await page.eval('oldUndo.click()');
+		assert.equal(await page.eval('JSON.parse(localStorage.mobingo_parent_state).currentTurn'),0);assert.deepEqual(page.errors,[]);
 	}finally{await page.close();}
 });

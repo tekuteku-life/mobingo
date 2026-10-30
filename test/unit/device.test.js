@@ -45,6 +45,7 @@ test('R-15: 振動非対応・例外・全パターン', () => {
 	assert.deepEqual(patterns, [30, [40,30,40], [100,50,100,50,250], 60, [60,40,60], [80,40,80,40,100]]);
 	Object.defineProperty(globalThis, 'navigator', { value: { vibrate() { throw new Error('denied'); } }, configurable: true });
 	for (const fn of Object.values(haptics)) assert.doesNotThrow(fn);
+	assert.doesNotThrow(()=>haptics.vibrateReach("single"));
 	Object.defineProperty(globalThis, 'navigator', original);
 });
 
@@ -71,4 +72,12 @@ test('R-15: 全SVGアイコンと既定値を描画する', () => {
 		assert.match(renderIcon(name), /^<svg .*width="20"/);
 		assert.match(renderIcon(name, 32, 'icon'), /width="32".*class="icon"/);
 	}
+});
+
+test('R-15: AudioContext生成失敗をゲーム操作へ伝播させない',()=>{
+	globalThis.window={AudioContext:class{constructor(){throw new Error('audio denied');}}};
+	soundManager.ctx=null;
+	assert.doesNotThrow(()=>soundManager.unlock());
+	for(const method of methods)assert.doesNotThrow(()=>soundManager[method]());
+	delete globalThis.window;
 });

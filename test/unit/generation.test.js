@@ -90,3 +90,8 @@ test('R-03: 基準コミット061f8afのv1カード・75球ベクトルを維持
 	assert.deepEqual((await generateBingoCard(vectors.seed)).cells.map((cell) => cell.value), vectors.card);
 	assert.deepEqual(await generateDrawSequence(vectors.seed), vectors.draw);
 });
+
+test('R-10: QRは非文字列と余分な文字を拒否する',()=>{
+	for(const input of [null,undefined,42,{},'https://example.com/ABCD','mobingo:child:ABCDextra','ABCDextra'])assert.equal(base32.parseQrSeed(input),null);
+	assert.equal(base32.parseQrSeed('ABCD'),'ABCD');assert.equal(base32.parseQrSeed('mobingo:child:ABCD'),'ABCD');
+});

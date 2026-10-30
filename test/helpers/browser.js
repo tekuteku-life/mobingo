@@ -137,8 +137,10 @@ export async function startBrowser() {
 					},
 					async click(selector) {
 						await page.wait(`!!document.querySelector(${JSON.stringify(selector)})`);
+						await page.eval(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'center',inline:'center'})`);
 						const rect = await page.eval(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); const r = e.getBoundingClientRect(); return { x:r.x+r.width/2, y:r.y+r.height/2, w:r.width, h:r.height, disabled:e.disabled }; })()`);
-						assert.ok(rect.w > 0 && rect.h > 0 && !rect.disabled, `Element must be visible and enabled: ${selector}`);
+						assert.ok(rect.w > 0 && rect.h > 0 && !rect.disabled && rect.x >= 0 && rect.y >= 0 && rect.x < await page.eval("innerWidth") && rect.y < await page.eval("innerHeight"), `Element must be visible and enabled: ${selector}`);
+						assert.ok(await page.eval(`(() => {const e=document.querySelector(${JSON.stringify(selector)}),hit=document.elementFromPoint(${rect.x},${rect.y});return e===hit||e.contains(hit);})()`), `Element must receive the click: ${selector}`);
 						await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
 						await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
 					},
