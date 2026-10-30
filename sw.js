@@ -1,4 +1,5 @@
-const CACHE_NAME = 'mobingo-v1';
+const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
+const CACHE_NAME = 'mobingo-v1.0.1';
 const STATIC_ASSETS = [
 	'./',
 	'./index.html',
@@ -17,6 +18,7 @@ const STATIC_ASSETS = [
 	'./js/core/haptics.js',
 	'./js/core/wakelock.js',
 	'./js/core/storage.js',
+	'./js/core/lifecycle.js',
 	'./js/core/icons.js',
 	'./js/views/mode-select.js',
 	'./js/views/child.js',
@@ -26,29 +28,29 @@ const STATIC_ASSETS = [
 	'./js/components/slide-action.js'
 ];
 
-self.addEventListener('install', (event) => {
+sw.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches.open(CACHE_NAME).then((cache) => {
 			return cache.addAll(STATIC_ASSETS);
-		}).then(() => self.skipWaiting())
+		}).then(() => sw.skipWaiting())
 	);
 });
 
-self.addEventListener('activate', (event) => {
+sw.addEventListener('activate', (event) => {
 	event.waitUntil(
 		caches.keys().then((keys) => {
 			return Promise.all(
 				keys.map((key) => {
-					if (key !== CACHE_NAME) {
+					if (key.startsWith('mobingo-') && key !== CACHE_NAME) {
 						return caches.delete(key);
 					}
 				})
 			);
-		}).then(() => self.clients.claim())
+		}).then(() => sw.clients.claim())
 	);
 });
 
-self.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', (event) => {
 	if (event.request.method !== 'GET') return;
 
 	event.respondWith(

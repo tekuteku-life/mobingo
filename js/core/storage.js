@@ -1,3 +1,5 @@
+import { isValidSeed } from "./base32.js";
+
 /**
  * LocalStorage persistence for Game State
  */
@@ -9,7 +11,7 @@ const STORAGE_KEY_CHILD = "mobingo_child_state";
 export function loadAppMode() {
 	try {
 		const val = localStorage.getItem(STORAGE_KEY_APP_MODE);
-		if (val === "parent" || val === "child") return val;
+		if (val === "host" || val === "child") return val;
 	} catch {}
 	return "select";
 }
@@ -21,7 +23,7 @@ export function saveAppMode(mode) {
 export function loadParentState() {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY_PARENT);
-		if (raw) return JSON.parse(raw);
+		if (raw) return validateParentState(JSON.parse(raw));
 	} catch (e) {
 		console.error("Failed to load parent state:", e);
 	}
@@ -43,7 +45,7 @@ export function clearParentState() {
 export function loadChildState() {
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY_CHILD);
-		if (raw) return JSON.parse(raw);
+		if (raw) return validateChildState(JSON.parse(raw));
 	} catch (e) {
 		console.error("Failed to load child state:", e);
 	}
@@ -62,3 +64,24 @@ export function clearChildState() {
 	try { localStorage.removeItem(STORAGE_KEY_CHILD); } catch {}
 }
 
+
+function uniqueArray(value, validate) {
+	return Array.isArray(value) && value.every(validate) && new Set(value).size === value.length;
+}
+
+function validateChildState(value) {
+	if (!value || !isValidSeed(value.childSeed)
+		|| !uniqueArray(value.openedCellCoords, (coord) => typeof coord === "string" && /^[0-4],[0-4]$/.test(coord))
+		|| typeof value.specialRuleActive !== "boolean") return null;
+	return { childSeed: value.childSeed, openedCellCoords: [...value.openedCellCoords], specialRuleActive: value.specialRuleActive };
+}
+
+function validateParentState(value) {
+	if (!value || !isValidSeed(value.parentSeed)
+		|| !["mode_a", "mode_b"].includes(value.mode)
+		|| !Number.isInteger(value.currentTurn) || value.currentTurn < 0 || value.currentTurn > 75
+		|| !(value.specialRuleTurn === null || (Number.isInteger(value.specialRuleTurn) && value.specialRuleTurn >= 0 && value.specialRuleTurn <= 75))
+		|| !uniqueArray(value.registeredChildSeeds, isValidSeed)) return null;
+	return { parentSeed: value.parentSeed, mode: value.mode, currentTurn: value.currentTurn,
+		specialRuleTurn: value.specialRuleTurn, registeredChildSeeds: [...value.registeredChildSeeds] };
+}

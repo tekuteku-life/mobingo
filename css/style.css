@@ -788,3 +788,20 @@ html, body {
 
 
 
+
+/* Setup content may scroll on short screens; the game card keeps its fixed layout. */
+.setup-screen {
+	min-height: 0;
+	overflow-y: auto;
+	justify-content: safe center;
+}
+.setup-screen > * {
+	flex-shrink: 0;
+}
+
+.modal-content {
+	overflow-y: auto;
+}
+.modal-content > * {
+	flex-shrink: 0;
+}

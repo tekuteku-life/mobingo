@@ -141,7 +141,7 @@ export function calculateReachAndBingo(card, openedCoords, enableSpecialRules = 
 			completedLines.push({
 				id: pattern.id,
 				name: pattern.name,
-				isSpecial: !!pattern.isSpecial,
+				isSpecial: "isSpecial" in pattern && !!pattern.isSpecial,
 				cells: pattern.indices,
 			});
 		} else if (unOpenedCount === 1 && waitingVal !== null) {

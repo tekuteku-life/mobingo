@@ -3,7 +3,7 @@ import { soundManager } from "../core/audio.js";
 
 export function renderModeSelect(container, { onSelectChild, onSelectHost }) {
 	container.innerHTML = `
-		<div class="flex-1 flex flex-col items-center justify-center" style="padding:1rem; max-width:24rem; margin:0 auto; width:100%; text-align:center;">
+		<div class="setup-screen flex-1 flex flex-col items-center justify-center" style="padding:1rem; max-width:24rem; margin:0 auto; width:100%; text-align:center;">
 			<div style="width:5rem; height:5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f59e0b, #ec4899, #4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 20px 25px -5px rgba(79, 70, 229, 0.4); margin-bottom:1.5rem;">
 				<span style="font-size:2.5rem; font-weight:900; color:#fff;">M</span>
 			</div>

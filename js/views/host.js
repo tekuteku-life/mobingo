@@ -1,4 +1,5 @@
-import { sanitizeSeedInput, isValidSeed, generateRandomSeed } from "../core/base32.js";
+import { createScope } from "../core/lifecycle.js";
+import { sanitizeSeedInput, isValidSeed, generateRandomSeed, parseQrSeed } from "../core/base32.js";
 import {
 	generateDrawSequence,
 	generateBingoCard,
@@ -12,7 +13,22 @@ import { saveParentState, loadParentState, clearParentState } from "../core/stor
 import { BingoBarrel } from "../components/bingo-barrel.js";
 import { createSlideAction } from "../components/slide-action.js";
 
+function getBallLetter(n) {
+	if (n <= 15) return "B";
+	if (n <= 30) return "I";
+	if (n <= 45) return "N";
+	if (n <= 60) return "G";
+	return "O";
+}
+
 export function renderHostView(container) {
+	const viewScope = createScope();
+	let screenScope = viewScope.child();
+	function beginScreen() {
+		screenScope.dispose();
+		screenScope = viewScope.child();
+		return screenScope;
+	}
 	let saved = loadParentState();
 	let parentSeed = saved ? saved.parentSeed : "";
 	let gameMode = saved ? saved.mode : "mode_b";
@@ -28,6 +44,7 @@ export function renderHostView(container) {
 	function init() {
 		if (parentSeed && saved && currentTurn >= 0) {
 			generateDrawSequence(parentSeed).then((seq) => {
+				if (!viewScope.active) return;
 				drawSequence = seq;
 				isGameStarted = true;
 				if (gameMode === "mode_a") {
@@ -41,15 +58,18 @@ export function renderHostView(container) {
 		}
 	}
 
-	async function loadChildCards() {
-		childCardsMap.clear();
+	async function loadChildCards(scope = viewScope) {
+		const cards = new Map();
 		for (const seed of registeredSeeds) {
 			const card = await generateBingoCard(seed);
-			childCardsMap.set(seed, card);
+			if (!scope.active) return;
+			cards.set(seed, card);
 		}
+		childCardsMap = cards;
 	}
 
 	function render() {
+		if (!viewScope.active) return;
 		if (!isGameStarted) {
 			renderSetup();
 		} else {
@@ -59,10 +79,12 @@ export function renderHostView(container) {
 
 	// 1. Setup Screen
 	function renderSetup() {
+		const scope = beginScreen();
+		let requestId = 0;
 		let inputSeed = parentSeed || generateRandomSeed();
 
 		container.innerHTML = `
-			<div class="flex-1 flex flex-col justify-center" style="padding:1rem; max-width:28rem; margin:0 auto; width:100%; overflow-y:auto;">
+			<div class="setup-screen flex-1 flex flex-col justify-center" style="padding:1rem; max-width:28rem; margin:0 auto; width:100%; overflow-y:auto;">
 				<div style="text-align:center; margin-bottom:1.5rem;">
 					<div style="width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f43f5e, #f59e0b); display:flex; align-items:center; justify-content:center; box-shadow:0 15px 25px -5px rgba(244, 63, 94, 0.3); margin:0 auto 0.75rem auto; color:#fff;">
 						${renderIcon("trophy", 32)}
@@ -163,10 +185,12 @@ export function renderHostView(container) {
 		const proceedBtn = container.querySelector("#btn-host-proceed");
 
 		modeA.addEventListener("click", () => {
+			parentSeed = seedInput.value;
 			gameMode = "mode_a";
 			renderSetup();
 		});
 		modeB.addEventListener("click", () => {
+			parentSeed = seedInput.value;
 			gameMode = "mode_b";
 			renderSetup();
 		});
@@ -190,7 +214,10 @@ export function renderHostView(container) {
 			if (gameMode === "mode_a") {
 				renderContinuousScanner();
 			} else {
-				drawSequence = await generateDrawSequence(parentSeed);
+				const request = ++requestId;
+				const sequence = await generateDrawSequence(parentSeed);
+				if (!scope.active || request !== requestId) return;
+				drawSequence = sequence;
 				currentTurn = 0;
 				specialRuleTurn = null;
 				isGameStarted = true;
@@ -202,6 +229,9 @@ export function renderHostView(container) {
 
 	// 2. Mode A Continuous Scanner
 	function renderContinuousScanner() {
+		const scope = beginScreen();
+		let cameraActive = true;
+		let finishing = false;
 		let videoStream = null;
 		let animFrame = null;
 		let scanCoolDown = 0;
@@ -306,6 +336,7 @@ export function renderHostView(container) {
 
 			chipsContainer.querySelectorAll(".remove-chip-btn").forEach((btn) => {
 				btn.addEventListener("click", () => {
+					if (finishing) return;
 					const s = btn.getAttribute("data-seed");
 					registeredSeeds = registeredSeeds.filter((item) => item !== s);
 					renderChips();
@@ -331,7 +362,7 @@ export function renderHostView(container) {
 		}
 
 		function addSeed(seed) {
-			if (!isValidSeed(seed)) return;
+			if (finishing || !isValidSeed(seed)) return;
 			const isDup = registeredSeeds.includes(seed);
 			showToast(seed, isDup);
 			if (!isDup) {
@@ -349,16 +380,18 @@ export function renderHostView(container) {
 				const stream = await navigator.mediaDevices.getUserMedia({
 					video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
 				});
+				if (!scope.active || !cameraActive) { stream.getTracks().forEach((track) => track.stop()); return; }
 				videoStream = stream;
 				video.srcObject = stream;
 				await video.play();
-				scanLoop();
+				if (scope.active && cameraActive) scanLoop();
 			} catch (err) {
 				console.warn("Camera start failed:", err);
 			}
 		}
 
 		function scanLoop() {
+			if (!scope.active || !cameraActive) return;
 			if (video.readyState === video.HAVE_ENOUGH_DATA && window.jsQR) {
 				canvas.width = video.videoWidth;
 				canvas.height = video.videoHeight;
@@ -371,10 +404,8 @@ export function renderHostView(container) {
 
 				const now = Date.now();
 				if (code && code.data && now > scanCoolDown) {
-					let s = code.data;
-					if (s.startsWith("mobingo:child:")) s = s.replace("mobingo:child:", "");
-					s = sanitizeSeedInput(s);
-					if (isValidSeed(s)) {
+					const s = parseQrSeed(code.data);
+					if (s !== null) {
 						scanCoolDown = now + 1200;
 						addSeed(s);
 					}
@@ -384,12 +415,15 @@ export function renderHostView(container) {
 		}
 
 		function stopCamera() {
+			cameraActive = false;
 			if (animFrame) cancelAnimationFrame(animFrame);
 			if (videoStream) {
 				videoStream.getTracks().forEach((track) => track.stop());
+				videoStream = null;
 			}
 		}
 
+		scope.add(stopCamera);
 		startCamera();
 
 		manualInput.addEventListener("input", (e) => {
@@ -406,30 +440,44 @@ export function renderHostView(container) {
 		});
 
 		backBtn.addEventListener("click", () => {
+			if (finishing) return;
 			stopCamera();
 			renderSetup();
 		});
 
 		finishBtn.addEventListener("click", async () => {
+			if (finishing || registeredSeeds.length === 0) return;
+			finishing = true;
+			manualInput.disabled = true;
+			manualForm.querySelector("button").disabled = true;
+			backBtn.disabled = true;
+			chipsContainer.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+			registeredSeeds = [...registeredSeeds];
 			stopCamera();
-			drawSequence = await generateDrawSequence(parentSeed);
+			finishBtn.disabled = true;
+			const sequence = await generateDrawSequence(parentSeed);
+			if (!scope.active) return;
+			drawSequence = sequence;
 			currentTurn = 0;
 			specialRuleTurn = null;
+			await loadChildCards(scope);
+			if (!scope.active) return;
 			isGameStarted = true;
 			saveParent();
-			await loadChildCards();
 			render();
 		});
 	}
 
 	// 3. Parent Game Dashboard
 	function renderDashboard() {
+		const scope = beginScreen();
 		const currentBall = currentTurn > 0 ? drawSequence[currentTurn - 1] : null;
 		const history = drawSequence.slice(0, currentTurn);
 		const drawnSet = new Set(history);
 
 		// Mode A Stats
 		let totalReach = 0;
+		const bingoSeeds = [];
 		let nextBallHotSeeds = [];
 		let leastOpened = [];
 
@@ -450,6 +498,7 @@ export function renderHostView(container) {
 				const isSpecial = specialRuleTurn !== null && currentTurn >= specialRuleTurn;
 				const { reach, isBingo } = calculateReachAndBingo(card, opened, isSpecial);
 
+				if (isBingo) bingoSeeds.push(seed);
 				if (!isBingo) {
 					totalReach += reach.reachCount;
 					if (nextBall !== null && reach.waitingNumbers.includes(nextBall)) {
@@ -461,13 +510,6 @@ export function renderHostView(container) {
 			leastOpened.sort((a, b) => a.count - b.count);
 		}
 
-		const getBallLetter = (n) => {
-			if (n <= 15) return "B";
-			if (n <= 30) return "I";
-			if (n <= 45) return "N";
-			if (n <= 60) return "G";
-			return "O";
-		};
 
 		const getBallBg = (n) => {
 			if (n <= 15) return "linear-gradient(135deg, #ef4444, #b91c1c)";
@@ -489,6 +531,7 @@ export function renderHostView(container) {
 			<div class="host-dashboard-container">
 				<!-- Left Column: Controls & Drum -->
 				<div class="host-dashboard-left">
+				${gameMode === "mode_a" && bingoSeeds.length > 0 ? `<div id="host-bingo-winners" style="flex-shrink:0;max-height:3rem;overflow-y:auto;background:#064e3b;border-radius:0.5rem;padding:0.25rem;font-size:0.75rem;">ビンゴ成立者: ${bingoSeeds.join(", ")}</div>` : ""}
 					<!-- Top Info -->
 					<div style="display:flex; flex-direction:column; gap:0.35rem; margin-bottom:0.25rem; flex-shrink:0;">
 						<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.35rem; background:#0f172a; border:1px solid #1e293b; border-radius:1rem; padding:0.4rem 0.65rem; width:100%; box-sizing:border-box;">
@@ -696,10 +739,10 @@ export function renderHostView(container) {
 			</div>
 		`;
 
-		bindDashboardEvents({ currentBall, history, drawnSet, leastOpened });
+		bindDashboardEvents({ leastOpened, scope });
 	}
 
-	function bindDashboardEvents({ leastOpened }) {
+	function bindDashboardEvents({ leastOpened, scope }) {
 		const undoBtn = container.querySelector("#btn-undo-ball");
 		const matrixToggle = container.querySelector("#btn-toggle-matrix");
 		const matrixPanel = container.querySelector("#full-matrix-panel");
@@ -720,11 +763,13 @@ export function renderHostView(container) {
 
 		// Initialize realistic Rotary Bingo Cage
 		const barrel = new BingoBarrel(barrelCanvas);
+		scope.add(() => barrel.destroy());
 		if (currentTurn > 0) {
 			barrel.stopSpin(drawSequence[currentTurn - 1]);
 		}
 
 		function completeEjection() {
+			if (!scope.active || !isShowingEjected) return;
 			if (ejectTimer) clearTimeout(ejectTimer);
 			ejectTimer = null;
 			isShowingEjected = false;
@@ -734,6 +779,7 @@ export function renderHostView(container) {
 		}
 
 		function finishSpin() {
+			if (!scope.active || !isSpinning) return;
 			if (spinTimer) clearTimeout(spinTimer);
 			spinTimer = null;
 			isSpinning = false;
@@ -766,11 +812,11 @@ export function renderHostView(container) {
 			}
 
 			// Keep the ejected ball displayed for 5 seconds (Req 3.1)
-			ejectTimer = setTimeout(completeEjection, 5000);
+			ejectTimer = scope.timeout(completeEjection, 5000);
 		}
 
 		// Slide to Action for ball drawing (Req 3.1)
-		createSlideAction(slideBox, {
+		const slide = createSlideAction(slideBox, {
 			text: "スライドしてボールを引く ➔➔",
 			disabled: currentTurn >= 75,
 			onSuccess: () => {
@@ -782,9 +828,11 @@ export function renderHostView(container) {
 
 				if (hintEl) hintEl.textContent = "回転中... (タップで確定)";
 
-				spinTimer = setTimeout(finishSpin, 1800);
+				spinTimer = scope.timeout(finishSpin, 1800);
 			},
 		});
+
+		scope.add(() => slide.destroy());
 
 		// Tap to skip tempo control (both during spin and during ball display)
 		wheelArena.addEventListener("click", () => {
@@ -858,6 +906,9 @@ export function renderHostView(container) {
 
 	// 4. Verification Modal (Req 3.3)
 	function showVerificationModal() {
+		const scope = screenScope.child();
+		let cameraScope = scope.child();
+		let verificationId = 0;
 		const existing = document.getElementById("host-verify-modal");
 		if (existing) existing.remove();
 
@@ -883,6 +934,7 @@ export function renderHostView(container) {
 		`;
 
 		document.body.appendChild(modal);
+		scope.add(() => modal.remove());
 
 		const body = modal.querySelector("#verify-body");
 
@@ -942,8 +994,8 @@ export function renderHostView(container) {
 					</form>
 				`;
 				const form = content.querySelector("#verify-manual-form");
-				const inp = content.querySelector("#v-manual-input");
-				inp.addEventListener("input", (e) => (e.target.value = sanitizeSeedInput(e.target.value)));
+				const inp = /** @type {HTMLInputElement} */ (content.querySelector("#v-manual-input"));
+				inp.addEventListener("input", () => (inp.value = sanitizeSeedInput(inp.value)));
 				form.addEventListener("submit", (e) => {
 					e.preventDefault();
 					const s = sanitizeSeedInput(inp.value);
@@ -953,16 +1005,20 @@ export function renderHostView(container) {
 		}
 
 		async function startCam() {
+			stopCam();
+			cameraScope = scope.child();
+			const requestScope = cameraScope;
 			try {
 				const stream = await navigator.mediaDevices.getUserMedia({
 					video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
 				});
+				if (!requestScope.active) { stream.getTracks().forEach((track) => track.stop()); return; }
 				videoStream = stream;
-				const video = modal.querySelector("#v-video");
+				const video = /** @type {HTMLVideoElement} */ (modal.querySelector("#v-video"));
 				if (video) {
 					video.srcObject = stream;
 					await video.play();
-					loopCam();
+					if (requestScope.active) loopCam();
 				}
 			} catch (err) {
 				console.warn("Verify cam failed:", err);
@@ -970,8 +1026,9 @@ export function renderHostView(container) {
 		}
 
 		function loopCam() {
-			const video = modal.querySelector("#v-video");
-			const canvas = modal.querySelector("#v-canvas");
+			if (!scope.active || !cameraScope.active) return;
+			const video = /** @type {HTMLVideoElement} */ (modal.querySelector("#v-video"));
+			const canvas = /** @type {HTMLCanvasElement} */ (modal.querySelector("#v-canvas"));
 			if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA && window.jsQR) {
 				canvas.width = video.videoWidth;
 				canvas.height = video.videoHeight;
@@ -980,10 +1037,8 @@ export function renderHostView(container) {
 				const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
 				const code = window.jsQR(img.data, img.width, img.height);
 				if (code && code.data) {
-					let s = code.data;
-					if (s.startsWith("mobingo:child:")) s = s.replace("mobingo:child:", "");
-					s = sanitizeSeedInput(s);
-					if (isValidSeed(s)) {
+					const s = parseQrSeed(code.data);
+					if (s !== null) {
 						soundManager.playScanBeep();
 						stopCam();
 						doVerify(s);
@@ -995,13 +1050,18 @@ export function renderHostView(container) {
 		}
 
 		function stopCam() {
+			cameraScope.dispose();
 			if (animFrame) cancelAnimationFrame(animFrame);
 			if (videoStream) {
 				videoStream.getTracks().forEach((track) => track.stop());
+				videoStream = null;
 			}
 		}
+		scope.add(stopCam);
 
 		async function doVerify(seed) {
+			stopCam();
+			const request = ++verificationId;
 			body.innerHTML = `
 				<div style="text-align:center; padding:2rem 0;">
 					<div style="width:2.5rem; height:2.5rem; border:3px solid #6366f1; border-top-color:transparent; border-radius:9999px; animation:spin 1s linear infinite; margin:0 auto 0.75rem auto;"></div>
@@ -1010,6 +1070,7 @@ export function renderHostView(container) {
 			`;
 
 			const result = await verifyChildCard(seed, drawSequence, currentTurn, specialRuleTurn);
+			if (!scope.active || request !== verificationId) return;
 
 			if (result.isValidWin) {
 				soundManager.playFanfare();
@@ -1096,10 +1157,7 @@ export function renderHostView(container) {
 			});
 		}
 
-		const close = () => {
-			stopCam();
-			modal.remove();
-		};
+		const close = () => scope.dispose();
 
 		modal.querySelector("#close-verify-btn").addEventListener("click", close);
 		modal.addEventListener("click", (e) => {
@@ -1111,6 +1169,7 @@ export function renderHostView(container) {
 
 	// 5. Projector View (Req 3.2)
 	function showProjectorView() {
+		const scope = screenScope.child();
 		const existing = document.getElementById("projector-view");
 		if (existing) existing.remove();
 
@@ -1118,13 +1177,6 @@ export function renderHostView(container) {
 		const history = drawSequence.slice(0, currentTurn);
 		const drawnSet = new Set(history);
 
-		const getBallLetter = (n) => {
-			if (n <= 15) return "B";
-			if (n <= 30) return "I";
-			if (n <= 45) return "N";
-			if (n <= 60) return "G";
-			return "O";
-		};
 
 		const getBallBg = (n) => {
 			if (n <= 15) return "linear-gradient(135deg, #ef4444, #b91c1c)";
@@ -1260,20 +1312,23 @@ export function renderHostView(container) {
 		`;
 
 		document.body.appendChild(proj);
+		scope.add(() => proj.remove());
 
 		const projCanvas = proj.querySelector("#proj-barrel-canvas");
 		if (projCanvas) {
 			const projBarrel = new BingoBarrel(projCanvas);
+			scope.add(() => projBarrel.destroy());
 			if (currentBall !== null) {
 				projBarrel.stopSpin(currentBall);
 			}
 		}
 
-		proj.querySelector("#close-proj-btn").addEventListener("click", () => proj.remove());
+		proj.querySelector("#close-proj-btn").addEventListener("click", () => scope.dispose());
 	}
 
 	// 6. Special Cut-in Splash Animation
 	function showSpecialCutIn() {
+		const scope = beginScreen();
 		const splash = document.createElement("div");
 		splash.className = "modal-overlay animate-fade-in";
 		splash.style.zIndex = "100";
@@ -1291,7 +1346,8 @@ export function renderHostView(container) {
 			</div>
 		`;
 		document.body.appendChild(splash);
-		setTimeout(() => {
+		scope.add(() => splash.remove());
+		scope.timeout(() => {
 			splash.remove();
 			render();
 		}, 3200);
@@ -1299,6 +1355,7 @@ export function renderHostView(container) {
 
 	// 7. Dobe / Reverse Bingo Modal
 	function showDobeModal(leastOpened) {
+		const scope = screenScope.child();
 		const modal = document.createElement("div");
 		modal.className = "modal-overlay animate-fade-in";
 		modal.innerHTML = `
@@ -1332,7 +1389,8 @@ export function renderHostView(container) {
 			</div>
 		`;
 		document.body.appendChild(modal);
-		modal.querySelector("#close-dobe-btn").addEventListener("click", () => modal.remove());
+		scope.add(() => modal.remove());
+		modal.querySelector("#close-dobe-btn").addEventListener("click", () => scope.dispose());
 	}
 
 	function saveParent() {
@@ -1346,5 +1404,6 @@ export function renderHostView(container) {
 	}
 
 	init();
+	return () => viewScope.dispose();
 }
 
