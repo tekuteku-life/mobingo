@@ -1,0 +1,61 @@
+# 内部設計書
+
+## 1. 構成と依存関係
+
+| ID | 対象 | 責務・依存 |
+| --- | --- | --- |
+| I-01 | `js/app.js`、`js/views/mode-select.js` | 起動、SW登録、役割選択、共通ヘッダー、画面の生成と破棄 |
+| I-02 | `js/core/base32.js` | ID補正・妥当性検査・暗号乱数による生成・数値との相互変換 |
+| I-03 | `js/core/crypto.js` | Web Cryptoによる用途別鍵導出とメモリ内キャッシュ |
+| I-04 | `js/core/chacha20.js` | ChaCha20のブロック、32bit整数、棄却法、シャッフル |
+| I-05 | `js/core/bingo.js` | 生成、12標準ライン・3特殊役、リーチ、手番別照合 |
+| I-06 | `js/core/storage.js` | localStorageキー、JSON、復元前のスキーマ検証、保存失敗の隔離 |
+| I-07 | `js/views/child.js` | 参加者セットアップ、開封状態、操作・QR・演出 |
+| I-08 | `js/views/host.js` | 開催者セットアップ、受付、抽選、照合、特殊役、投影 |
+| I-09 | `js/components/slide-action.js` | pointer捕捉とスライド成立・キャンセル |
+| I-10 | `js/components/bingo-barrel.js` | Canvas描画・演出専用物理乱数、RAF・ResizeObserver管理 |
+| I-11 | `js/core/audio.js`、`haptics.js`、`wakelock.js` | 機能検出、音声・振動・スリープ防止 |
+| I-12 | `js/core/icons.js`、`js/views/license-modal.js` | 自作SVGアイコンと情報モーダル |
+| I-13 | `sw.js`、`manifest.json` | 静的資産のキャッシュとPWA起動条件 |
+
+`index.html`は同梱のqrcode、jsQR、canvas-confettiをclassic scriptで読み込み、`js/app.js`をES Moduleで起動する。`css/style.css`はユーティリティと独自レイアウトを含む。React、Viteは既存package依存に残るが実行経路では使わず、本構成の配信にビルドは不要である。
+
+## 2. 決定論的生成（I-02〜I-05）
+
+IDの文字集合は32文字、長さ4である。ランダムIDは`crypto.getRandomValues`の4バイトの各下位5bitを文字へ写像する。`seedToNumber`は左から32進蓄積、`numberToSeed`は0〜32^4−1への剰余から4桁を作る。数値変換の内部呼出し契約は非負整数である。
+
+KDFはUTF-8のIDをpasswordとし、saltを`mobingo-salt-v1:mobingo:draw`または`mobingo-salt-v1:mobingo:card`、PBKDF2-SHA256・30,000反復で256bitを導出する。キャッシュキーは`seed:context`であり、セッション中の再導出を省略する。20bit入力の探索耐性を256bitと誤認してはならない。
+
+ChaCha20は32バイト鍵、12バイトnonce（省略時0）、32bit counter初期0、20ラウンド、little-endianである。64バイト単位で生成し、`nextUint32`は4バイトずつ取り出す。`nextInt(max)`は2^32の端数領域を棄却して剰余を返し、`shuffle`は末尾からFisher–Yatesを適用する。アプリが利用する上限は75以下である。
+
+出目は1〜75をシャッフルした配列である。カードはB、I、N、G、Oの順にそれぞれ15候補をシャッフルし、B/I/G/Oは5個、Nは4個を取得する。行優先で`{row,col,value,letter}`を25件作り、N中央は`value:0`である。返却値は`{seed,grid,cells,valueToCellMap}`であり、MapはFREEを含まない。
+
+## 3. 判定（I-05）
+
+座標Setの`"2,2"`を常時開封として扱う。各パターンの未開封数が0なら完成、1ならリーチである。待ち数字はSetで重複を除き昇順化する。リーチ数0/1/2/3以上を`none`/`single`/`double`/`triple_or_more`へ写像する。
+
+標準パターンは横5・縦5・斜め2の12本である。特殊役は四隅4座標、X形9座標、十字9座標である。参加者のONは3役を一括追加する。
+
+`verifyChildCard(childSeed, drawSequence, currentTurn, specialRuleTurn)`は1手から現在手番まで再生し、各手番で出目集合と開封座標を再構成する。特殊役は`specialRuleTurn !== null && turn >= specialRuleTurn`で評価する。初めて現れたパターンに`turnAchieved`を付け、最初の手番と同手番の全役を保持する。0手は成立なしである。計算量は75手×25セル×15パターンを上限とする。
+
+## 4. 状態とライフサイクル（I-01、I-06〜I-10）
+
+参加者状態はID、生成カード、座標Set、特殊役フラグ、ビンゴ演出済みフラグである。開催者状態はID、モード、出目配列、手番、解禁手番、受付ID配列、カードMapである。生成カードとMapは保存せずIDから再生成する。保存の開始はゲーム開始時であり、モードA受付中の一覧はメモリ内だけで保持する。
+
+抽選状態は待機→回転→球表示→1手確定→待機である。回転中は再開始しない。キャンセルやリセットでは古い回転・球表示タイマーを無効化し、旧手番の書き戻しを防ぐ。Undoとリセットは確認承認後だけ適用する。
+
+画面render関数は破棄関数を返す。アプリは再描画前に旧画面を破棄する。画面内の再描画もタイマーとCanvas監視を破棄する。非同期処理は開始時の世代と完了時の生存状態を照合する。カメラ取得を待つ間に画面・タブ・モーダルが変わった場合、到着したstreamを即座に停止する。QR照合の結果は現在のリクエストだけ反映する。
+
+pointer操作はpointerIdを保持する。移動境界、pointercancel、lostpointercaptureで中断し、別pointerの開始・移動・終了を無視する。長押し成立後のpointerupで再開封しない。スライドは移動可能距離を0〜1へ正規化し、0.85以上で成立する。
+
+保存復元では入力を検証して既知フィールドだけの新規オブジェクトを返す。値の補正で壊れた保存データを黙って採用せず、ゲーム単位で拒否する。既存キーとフィールド名は維持する。
+
+## 5. Service Worker（I-13）
+
+installは`STATIC_ASSETS`を`cache.addAll`して完了後にskipWaitingする。activateは同アプリの`mobingo-`接頭辞を持つ旧キャッシュだけを削除してclients.claimする。fetchはGETのみcache-firstで処理し、同一オリジン・200・basic応答を保存する。オフラインのnavigateはキャッシュ済みindexへフォールバックする。
+
+バージョン更新時はpackageのルートバージョンと`CACHE_NAME = 'mobingo-vX.Y.Z'`を同期する。独自の更新通知・強制リロード機構は現行に存在しない。配信済み旧SWからの更新は本番環境で別途確認する。
+
+## 6. 検証境界
+
+KDFはNode標準cryptoの独立計算、ChaCha20は既知ベクトル、判定は直接数えた座標・独立参照判定で検証する。ブラウザAPI単体モックだけでは実DOM・PWA動作を証明しないため、システムとUI試験を併用する。自作JS全体とSWの未ロードを含むファイル別カバレッジを測る。
