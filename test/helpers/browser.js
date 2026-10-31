@@ -49,11 +49,13 @@ class CDP {
 	close() { this.socket.close(); }
 }
 
-export async function startBrowser() {
+export async function startBrowser({ route = async () => null } = {}) {
 	const root = process.cwd();
 	const server = createServer(async (req, res) => {
 		try {
 			const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+			const custom = await route(pathname);
+			if (custom) { res.writeHead(custom.status ?? 200, { 'Content-Type': custom.type ?? 'text/javascript', 'Cache-Control': 'no-store' }); res.end(custom.body ?? ''); return; }
 			const path = resolve(root, `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`);
 			if (relative(root, path).startsWith('..')) { res.writeHead(403).end(); return; }
 			const contents = await readFile(path);
@@ -87,8 +89,8 @@ export async function startBrowser() {
 		const browser = await CDP.connect(endpoint);
 		return {
 			origin,
-			async page({ width = 390, height = 844, mobile = false, setup = '' } = {}) {
-				const { browserContextId } = await browser.send('Target.createBrowserContext');
+			async page({ width = 390, height = 844, mobile = false, setup = '', contextId } = {}) {
+				const browserContextId = contextId || (await browser.send('Target.createBrowserContext')).browserContextId;
 				const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId });
 				await browser.send('Target.activateTarget', { targetId });
 				const targets = await (await fetch(`${endpoint.replace(/^ws:/, 'http:').split('/devtools/')[0]}/json/list`)).json();
@@ -111,7 +113,7 @@ export async function startBrowser() {
 					await cdp.send('Profiler.startPreciseCoverage', { callCount: true, detailed: true });
 				}
 				const page = {
-					cdp, errors,
+					cdp, errors, contextId: browserContextId,
 					dialog(accept) { acceptDialog = accept; },
 					async eval(expression) {
 						const result = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
@@ -197,7 +199,8 @@ export async function startBrowser() {
 					async close() {
 						await page.collect();
 						cdp.close();
-						await browser.send('Target.disposeBrowserContext', { browserContextId });
+						if (contextId) await browser.send('Target.closeTarget', { targetId });
+						else await browser.send('Target.disposeBrowserContext', { browserContextId });
 					},
 				};
 				await cdp.send('Page.navigate', { url: origin });
