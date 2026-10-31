@@ -147,3 +147,18 @@ for(const[width,height]of sizes){
 		}finally{await page.close();}
 	});
 }
+
+for(const target of ['#slide-track','#slide-thumb']){
+	test(`U-08 mobile: ${target}上の縦スワイプはスクロールし抽選しない`,async()=>{
+		const page=await browser.page({width:640,height:360,mobile:true,setup});
+		try{
+			await host(page);await reveal(page,target,'.host-dashboard-left');await visible(page,target,true);
+			const before=await page.eval('document.querySelector(".host-dashboard-left").scrollTop');
+			assert.ok(await page.eval('document.querySelector(".host-dashboard-left").scrollHeight-document.querySelector(".host-dashboard-left").clientHeight')>before+10);
+			await page.swipe(target);
+			await page.wait(`document.querySelector('.host-dashboard-left').scrollTop>${before}`);
+			assert.equal(await page.eval('JSON.parse(localStorage.mobingo_parent_state).currentTurn'),0);
+			assert.doesNotMatch(await page.eval('document.querySelector("#barrel-status-hint").textContent'),/回転中|ボール確定/);assert.deepEqual(page.errors,[]);
+		}finally{await page.close();}
+	});
+}
