@@ -1,119 +1,80 @@
-/**
- * Slide to Action Component
- * Swipe-to-trigger component to prevent accidental double-ejections.
- */
-
 import { renderIcon } from "../core/icons.js";
 import { soundManager } from "../core/audio.js";
 import { vibratePunch } from "../core/haptics.js";
+import { createScope } from "../core/lifecycle.js";
 
-export function createSlideAction(container, { text = "スライドしてボールを引く ➔➔", onSuccess, disabled = false }) {
+export function createSlideAction(container, { text = "スライドして実行", onSuccess, disabled = false }) {
+	const scope = createScope();
 	container.innerHTML = `
-		<div class="slide-track ${disabled ? 'disabled' : ''}" id="slide-track">
-			<div class="slide-progress" id="slide-progress"></div>
-			<div class="slide-text" id="slide-text">${text}</div>
-			<div class="slide-thumb" id="slide-thumb">
-				${renderIcon("arrow-right", 20)}
-			</div>
+		<div id="slide-track" class="slide-track ${disabled ? 'disabled' : ''}">
+			<div id="slide-progress" class="slide-progress"></div>
+			<span id="slide-text" class="slide-text">${text}</span>
+			<div id="slide-thumb" class="slide-thumb">${renderIcon("arrow-right", 24)}</div>
 		</div>
 	`;
-
-	if (disabled) return { reset: () => {}, setDisabled: () => {} };
-
 	const track = container.querySelector("#slide-track");
 	const progress = container.querySelector("#slide-progress");
 	const thumb = container.querySelector("#slide-thumb");
 	const textEl = container.querySelector("#slide-text");
-
-	let isDragging = false;
+	let pointerId = null;
 	let startX = 0;
-	let currentLeft = 4; // px
-	const minLeft = 4; // 0.25rem
-
-	function getMaxSlide() {
-		const trackWidth = track.clientWidth;
-		const thumbWidth = thumb.clientWidth;
-		return trackWidth - thumbWidth - 4;
-	}
-
-	function setProgress(px) {
-		const max = getMaxSlide();
-		const ratio = Math.max(0, Math.min(1, (px - minLeft) / max));
-		thumb.style.left = `${px}px`;
+	let ratio = 0;
+	let resetTimer = null;
+	const distance = () => Math.max(0, track.clientWidth - thumb.clientWidth - 8);
+	function setProgress(value) {
+		ratio = Math.max(0, Math.min(1, value));
+		thumb.style.left = `${4 + ratio * distance()}px`;
 		progress.style.width = `${ratio * 100}%`;
 		textEl.style.opacity = `${Math.max(0, 1 - ratio * 1.5)}`;
 	}
-
-	function onPointerDown(e) {
-		if (disabled) return;
+	function reset() {
+		if (!scope.active) return;
+		clearTimeout(resetTimer);
+		thumb.classList.add("animating");
+		setProgress(0);
+		resetTimer = scope.timeout(() => thumb.classList.remove("animating"), 260);
+	}
+	function cancel() {
+		const id = pointerId;
+		pointerId = null;
+		if (id !== null && thumb.hasPointerCapture(id)) thumb.releasePointerCapture(id);
+		reset();
+	}
+	function onDown(event) {
+		if (disabled || pointerId !== null) return;
 		soundManager.unlock();
-		isDragging = true;
-		startX = e.clientX - (thumb.offsetLeft || minLeft);
+		pointerId = event.pointerId;
+		startX = event.clientX;
+		clearTimeout(resetTimer);
 		thumb.classList.remove("animating");
-		thumb.setPointerCapture(e.pointerId);
+		setProgress(0);
+		if (event.isTrusted) thumb.setPointerCapture(pointerId);
 	}
-
-	function onPointerMove(e) {
-		if (!isDragging) return;
-		const max = getMaxSlide();
-		let nextLeft = e.clientX - startX;
-		if (nextLeft < minLeft) nextLeft = minLeft;
-		if (nextLeft > max) nextLeft = max;
-
-		currentLeft = nextLeft;
-		setProgress(nextLeft);
+	function onMove(event) {
+		if (event.pointerId !== pointerId) return;
+		const max = distance();
+		setProgress(max > 0 ? (event.clientX - startX) / max : 0);
 	}
-
-	function onPointerUp(e) {
-		if (!isDragging) return;
-		isDragging = false;
-		thumb.releasePointerCapture(e.pointerId);
-
-		const max = getMaxSlide();
-		const ratio = (currentLeft - minLeft) / max;
-
-		if (ratio >= 0.85) {
-			// Trigger Success!
-			setProgress(max);
+	function onUp(event) {
+		if (event.pointerId !== pointerId) return;
+		const success = ratio >= 0.85;
+		cancel();
+		if (success && !disabled) {
 			soundManager.playPunch();
 			vibratePunch();
-			if (typeof onSuccess === "function") {
-				onSuccess();
-			}
-			// Animate back after small delay
-			setTimeout(() => {
-				reset();
-			}, 350);
-		} else {
-			// Spring back to left
-			reset();
+			if (typeof onSuccess === "function") onSuccess();
 		}
 	}
-
-	function reset() {
-		thumb.classList.add("animating");
-		currentLeft = minLeft;
-		setProgress(minLeft);
-		setTimeout(() => {
-			thumb.classList.remove("animating");
-		}, 260);
+	function onCancel(event) {
+		if (event.pointerId === pointerId) cancel();
 	}
-
-	thumb.addEventListener("pointerdown", onPointerDown);
-	thumb.addEventListener("pointermove", onPointerMove);
-	thumb.addEventListener("pointerup", onPointerUp);
-	thumb.addEventListener("pointercancel", onPointerUp);
-
+	for (const [type, listener] of [["pointerdown", onDown], ["pointermove", onMove], ["pointerup", onUp], ["pointercancel", onCancel], ["lostpointercapture", onCancel]]) {
+		thumb.addEventListener(type, listener);
+		scope.add(() => thumb.removeEventListener(type, listener));
+	}
 	return {
 		reset,
-		setDisabled: (val) => {
-			disabled = val;
-			if (val) {
-				track.classList.add("disabled");
-			} else {
-				track.classList.remove("disabled");
-			}
-		},
+		setDisabled(value) { disabled = value; if (value) cancel(); track.classList.toggle("disabled", value); },
+		destroy() { cancel(); scope.dispose(); },
 	};
 }
-

@@ -32,9 +32,7 @@ export function isValidSeed(seed) {
 
 export function generateRandomSeed() {
 	const randomBytes = new Uint8Array(SEED_LENGTH);
-	const cryptoObj = typeof globalThis !== "undefined" && globalThis.crypto 
-		? globalThis.crypto 
-		: (typeof window !== "undefined" ? window.crypto : null);
+	const cryptoObj = globalThis.crypto;
 	cryptoObj.getRandomValues(randomBytes);
 	let seed = "";
 	for (let i = 0; i < SEED_LENGTH; i++) {
@@ -64,3 +62,10 @@ export function numberToSeed(num) {
 	return res;
 }
 
+
+/** QR payloads are complete identifiers, never lossy manual-input normalization. */
+export function parseQrSeed(input) {
+	if (typeof input !== "string") return null;
+	const seed = input.startsWith("mobingo:child:") ? input.slice("mobingo:child:".length) : input;
+	return isValidSeed(seed) ? seed : null;
+}

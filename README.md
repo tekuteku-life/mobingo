@@ -1,92 +1,65 @@
-# Mobingo（モビンゴ）- どこでも簡単デジタルビンゴ
+# Mobingo（モビンゴ）
 
-ネットワーク通信を一切使用せず、決定論的擬似乱数（PRNG）と4文字のシード値・QRコードを用いて、開催者（司会進行）と参加者を同期・検証する完全オフライン対応のデジタルビンゴシステムです。
+Mobingoは、4文字IDから同じビンゴカードと出目を再現する静的Webアプリである。開催者と参加者の端末間通信を必要とせず、初回取得とキャッシュ完了後はオフラインで進行できる。実行用ビルドと外部CDNは不要である。
 
-**ビルドステップ一切不要**（純粋な HTML / CSS / JavaScript (ES Modules)）で構成されており、このリポジトリをそのまま **GitHub Pages** にプッシュ・公開するだけで即座に稼働します。
+モードAは参加者を事前登録し、リーチ・ビンゴ成立者・次球の予告を自動集計する。モードBは事前登録を省略し、当選申告時にQRまたはIDで照合する。4文字IDはカード識別用であり、本人認証や完全な不正防止を保証するものではない。
 
----
+## 文書
 
-## 🌟 特徴
+- [開発プロセス定義書](docs/development_process.md)
+- [要求仕様書](docs/requirements.md)
+- [外部設計書](docs/external_design.md)
+- [内部設計書](docs/internal_design.md)
+- [UI設計書](docs/ui_design.md)
+- [設計とテストの対応・実測結果](docs/design_test_audit.md)
+- [レビュー記録](docs/reviews/)
 
-* **電波いらずで100%動作**: 地下会場や大規模イベントなど圏外の環境でも完全オフラインで動作（PWA / Service Worker キャッシュ対応）。
-* **触覚＆音響フィードバック**: 紙のビンゴカードの「パコッ」と穴を開ける触覚・視覚体験を Web Audio API（シンセサイザー合成音）と Vibration API で忠実に再現。
-* **非対称トグル操作**:
-  * 通常タップ（`< 400ms`）: 開封 ＋ 30ms 振動 ＋ パコッ打鍵音 ＋ パンチ穴演出
-  * 長押し（`>= 600ms`）: 復元 ＋ 2連振動 ＋ ポン復元音 ＋ ポップアップ演出（指が10px移動した場合は安全キャンセル）
-* **2つの同期・検証モード**:
-  * **モードA（事前登録モード）**: 少人数〜50人規模。開始前にカメラで全員の参加者QRを高速連続受付。全員のリーチ・ビンゴをリアルタイム自動検知、激アツ数字予告、逆ビンゴ賞（ドベ賞）算出。
-  * **モードB（事後検証モード）**: 100人以上の大規模・即開始。自己申告時に開催者カメラでQRまたは4文字IDをスキャンし、第何手目にビンゴが成立したかを厳密逆算照合。
-* **特殊役（途中解禁システム）**: 四隅（Four Corners）、クロス（X-Shape）、プラス（+ Cross）の途中解禁に対応。解禁手番以降の成立かを受付・照合側で厳密判定。
-* **タブレット横向き＆外部投影対応**: 横向き表示時は画面右側に1〜75出目ボードが常時展開。大画面投影用全画面モードも完備。
-* **モバイルブラウザ制御**: 画面スリープ防止（Screen Wake Lock API）、ズーム・スクロール・テキスト選択・コンテキストメニュー防止、LocalStorage自動復帰。
+`req.md`は初期原案として保持する。現行の契約と原案からの移行判断は`docs/`を参照する。
 
----
+## 起動と配信
 
-## 📁 ディレクトリ構成
+リポジトリのルートを静的HTTPサーバーで配信する。
 
-```
-mobingo/
-├── index.html                 # アプリのエントリーポイント
-├── manifest.json              # PWA マニフェスト（相対パス対応）
-├── sw.js                      # オフライン Service Worker（Cache-First）
-├── icons/
-│   └── icon.svg               # PWA用ベクターアイコン
-├── css/
-│   └── style.css              # ダークテーマ、3Dカード、パンチ穴、マルチリーチ発光スタイル
-└── js/
-    ├── app.js                 # アプリ起動・ヘッダー・ルーティング
-    ├── core/
-    │   ├── base32.js          # Crockford's Base32（誤認文字除外・正規化サニタイズ）
-    │   ├── crypto.js          # Web Crypto PBKDF2-SHA256（30,000回反復・ドメイン分離）
-    │   ├── chacha20.js        # ChaCha20 PRNG（RFC 8439準拠 512-bit状態空間・決定論的乱数）
-    │   ├── bingo.js           # 出目生成、カード生成、リーチ・ビンゴ判定、手番別逆算検証
-    │   ├── audio.js           # Web Audio API シンセサイザー効果音（完全オフライン）
-    │   ├── haptics.js         # Vibration API 触覚フィードバック
-    │   ├── wakelock.js        # Screen Wake Lock API 画面スリープ防止
-    │   ├── storage.js         # LocalStorage 自動保存＆復元
-    │   └── icons.js           # インラインSVGアイコン
-    ├── views/
-    │   ├── mode-select.js     # モード選択画面（参加者／開催者）
-    │   ├── child.js           # 参加者画面（スクロールレスカード、非対称トグル、QRモーダル、リセット）
-    │   ├── host.js            # 開催者画面（セットアップ、事前スキャナー、ダッシュボード、出目ボード、照合、投影）
-    │   └── license-modal.js   # ライセンス＆商標表示モーダル
-    └── lib/
-        ├── qrcode.min.js      # QRコード生成（MIT License）
-        ├── jsqr.js            # QRコード読取（Apache License 2.0）
-        └── confetti.js        # 紙吹雪エフェクト（ISC License）
-```
-
----
-
-## 🚀 GitHub Pages へのデプロイ方法
-
-ビルドコマンドは一切必要ありません。
-リポジトリのルートをそのまま GitHub Pages に設定するだけで即座に公開できます。
-
-1. 本リポジトリを GitHub に push します。
-2. リポジトリの **Settings** > **Pages** を開きます。
-3. **Build and deployment** の Source で **Deploy from a branch** を選択。
-4. Branch を `main`（または使用しているブランチ）、Folder を `/ (root)` に設定して **Save** をクリックします。
-5. 数分で発行される URL（例: `https://<username>.github.io/<repo>/`）にアクセスすれば完了です。
-
----
-
-## 💻 ローカルでの確認方法
-
-ブラウザで直接 `index.html` を開くか、または任意の静的HTTPサーバー（Python, npx serve等）で確認できます。
-
-```bash
-# Python 3 の場合
+```sh
 python3 -m http.server 8000
-
-# または npx serve の場合
-npx serve .
 ```
-ブラウザで `http://localhost:8000` を開きます。
 
----
+ブラウザで`http://localhost:8000`を開く。Web CryptoとService Workerを利用するため、本番はHTTPS、ローカルはlocalhostを使用する。`file://`による直接起動をPWA検証の代用にはしない。
 
-## 📜 ライセンス・商標表記
+GitHub Pagesでは、公開対象ブランチのルートを配信元に指定する。初回はオンラインで資産取得を完了し、その後のオフライン再訪を確認する。ブラウザが保存データを消去した場合の復旧や、モードA受付途中の一覧復元は提供しない。
 
-* 本プロジェクトはオープンソース（MIT License）です。
-* **商標表記**: QRコードは株式会社デンソーウェーブの登録商標です。
+## 開発と検証
+
+検証環境はNode.js 24とChromiumである。依存関係をlockfileから導入する。
+
+```sh
+npm ci
+npm run lint
+npm run test:unit
+npm run test:integration
+npm run test:system
+npm run test:ui
+npm run test:coverage
+```
+
+`npm test`は単体・結合・システム、`npm run test:all`はこれらとUIを実行する。`test:coverage`も全4層を実行し、Node V8とChromium CDPの位置情報を合算する。`.coverage/summary.md`と`.coverage/coverage.json`へ結果を出力し、自作`js/`と`sw.js`の各ファイルでLine/Branchのいずれかが97%未満なら失敗する。未ロードの対象も0%として含める。
+
+ブラウザ試験はローカルHTTP待受と子プロセス起動を必要とする。既定のブラウザは`/usr/bin/chromium`であり、別配置では`CHROME_BIN`へ実行ファイルのパスを設定する。各試験は独立したブラウザコンテキストを使用する。
+
+実機カメラの光学性能、実際の音声・振動・Wake Lock、外部モニター、本番HTTPS、既存PWAからの更新は別途確認する。カメラ入力のモックとQR画像の実デコードは異なる検証として記録する。
+
+コードはタブインデント、文書は「である」調、コミットは英語である。設計・テスト・最終実装には独立レビューを必須とする。手順と未達時の扱いは開発プロセス定義書に従う。
+
+## 構成
+
+| 配置 | 内容 |
+| --- | --- |
+| `index.html`、`css/` | エントリーポイントとレイアウト |
+| `js/core/` | ID、鍵導出、乱数、判定、保存、端末API、ライフサイクル |
+| `js/views/`、`js/components/` | 画面、モーダル、スライダー、Canvas |
+| `js/lib/` | ローカル同梱のQR生成・読取・紙吹雪ライブラリ |
+| `sw.js`、`manifest.json`、`icons/` | PWA配信資産 |
+| `test/unit/`、`integration/`、`system/`、`ui/` | 必須の4層テスト |
+| `scripts/`、`types/` | 静的検査とカバレッジ、ブラウザ型宣言 |
+
+商標および同梱ライブラリの表記はアプリ内の情報モーダルに掲載する。

@@ -19,9 +19,7 @@ export async function deriveKey(seed, contextInfo) {
 	const passwordBuffer = encoder.encode(seed);
 	const saltBuffer = encoder.encode(`${APP_SALT}:${contextInfo}`);
 
-	const cryptoObj = typeof globalThis !== "undefined" && globalThis.crypto 
-		? globalThis.crypto 
-		: (typeof window !== "undefined" ? window.crypto : null);
+	const cryptoObj = globalThis.crypto;
 	const subtle = cryptoObj.subtle;
 	const baseKey = await subtle.importKey(
 		"raw",

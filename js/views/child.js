@@ -1,3 +1,4 @@
+import { createScope } from "../core/lifecycle.js";
 import { sanitizeSeedInput, isValidSeed, generateRandomSeed } from "../core/base32.js";
 import { generateBingoCard, calculateReachAndBingo, FREE_CELL, SPECIAL_PATTERNS } from "../core/bingo.js";
 import { soundManager } from "../core/audio.js";
@@ -6,6 +7,18 @@ import { renderIcon } from "../core/icons.js";
 import { saveChildState, loadChildState, clearChildState } from "../core/storage.js";
 
 export function renderChildView(container) {
+	const viewScope = createScope();
+	let bingoScope = viewScope.child();
+	function resetConfetti() {
+		if (typeof window.confetti === "function") window.confetti.reset();
+	}
+	viewScope.add(resetConfetti);
+	let screenScope = viewScope.child();
+	function beginScreen() {
+		screenScope.dispose();
+		screenScope = viewScope.child();
+		return screenScope;
+	}
 	let saved = loadChildState();
 	let currentSeed = saved ? saved.childSeed : "";
 	let openedCoords = new Set(saved ? saved.openedCellCoords : ["2,2"]);
@@ -14,6 +27,7 @@ export function renderChildView(container) {
 	let isBingoAchieved = false;
 
 	function render() {
+		if (!viewScope.active) return;
 		if (!currentSeed || !currentCard) {
 			renderSetup();
 		} else {
@@ -23,11 +37,17 @@ export function renderChildView(container) {
 
 	// 1. Setup / Seed Input Screen
 	function renderSetup() {
+		resetConfetti();
+		bingoScope.dispose();
+		bingoScope = viewScope.child();
+		const scope = beginScreen();
+		let requestId = 0;
 		let inputSeed = currentSeed || generateRandomSeed();
 
 		container.innerHTML = `
-			<div class="flex-1 flex flex-col items-center justify-center" style="padding:1rem; max-width:24rem; margin:0 auto; width:100%; text-align:center;">
-				<div style="width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f59e0b, #4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 15px 25px -5px rgba(79, 70, 229, 0.3); margin-bottom:1.25rem;">
+			<div class="setup-screen child-setup-screen">
+				<div class="setup-intro">
+				<div class="setup-logo" style="width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f59e0b, #4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 15px 25px -5px rgba(79, 70, 229, 0.3); margin-bottom:1.25rem;">
 					${renderIcon("sparkles", 32)}
 				</div>
 
@@ -36,6 +56,7 @@ export function renderChildView(container) {
 					あなた専用の4文字ID（シード値）から暗号学的にビンゴカードを生成します。
 				</p>
 
+				</div>
 				<form id="child-setup-form" style="width:100%; display:flex; flex-direction:column; gap:1rem;">
 					<div style="background:#0f172a; border:1px solid #1e293b; border-radius:1rem; padding:1.25rem; box-shadow:0 10px 15px -3px rgba(0,0,0,0.5);">
 						<label style="font-size:0.75rem; font-weight:700; color:#94a3b8; display:block; margin-bottom:0.5rem;">
@@ -102,9 +123,12 @@ export function renderChildView(container) {
 			const seed = sanitizeSeedInput(input.value);
 			if (isValidSeed(seed)) {
 				soundManager.playPunch();
+				const request = ++requestId;
+				const card = await generateBingoCard(seed);
+				if (!scope.active || request !== requestId) return;
 				currentSeed = seed;
 				openedCoords = new Set(["2,2"]);
-				currentCard = await generateBingoCard(seed);
+				currentCard = card;
 				saveState();
 				render();
 			}
@@ -113,6 +137,7 @@ export function renderChildView(container) {
 
 	// 2. Main 1-Screen Card View
 	function renderCardScreen() {
+		const scope = beginScreen();
 		const { reach, completedLines, isBingo } = calculateReachAndBingo(
 			currentCard,
 			openedCoords,
@@ -126,16 +151,18 @@ export function renderChildView(container) {
 			vibrateBingo();
 			if (typeof window.confetti === "function") {
 				window.confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-				setTimeout(() => {
+				scope.timeout(() => {
 					window.confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0 } });
 					window.confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1 } });
 				}, 250);
 			}
-			setTimeout(() => {
+			bingoScope.timeout(() => {
 				showQrModal();
 			}, 700);
 		} else if (!isBingo) {
 			isBingoAchieved = false;
+			bingoScope.dispose();
+			bingoScope = viewScope.child();
 		}
 
 		// Reach Border glow class
@@ -370,106 +397,73 @@ export function renderChildView(container) {
 			</div>
 		`;
 
-		bindCardEvents();
+		bindCardEvents(scope);
 	}
 
 	// Bind Asymmetric Touch (Tap < 400ms to open, Long press >= 600ms to restore)
-	function bindCardEvents() {
+	function bindCardEvents(scope) {
 		const grid = container.querySelector("#bingo-cells-grid");
-		if (!grid) return;
 
-		let pointerStart = null;
+		let pointer = null;
 		let longPressTimer = null;
 		let progressSvg = null;
-
+		function cancelPointer() {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+			progressSvg?.remove();
+			progressSvg = null;
+			const previous = pointer;
+			pointer = null;
+			if (previous && previous.el.hasPointerCapture(previous.id)) previous.el.releasePointerCapture(previous.id);
+		}
+		scope.add(cancelPointer);
 		grid.querySelectorAll(".bingo-cell").forEach((el) => {
 			const coord = el.getAttribute("data-coord");
-			const isFree = el.getAttribute("data-free") === "true";
-			if (isFree) return; // FREE is permanent
-
-			el.addEventListener("pointerdown", (e) => {
+			if (el.getAttribute("data-free") === "true") return;
+			el.addEventListener("pointerdown", (event) => {
+				if (pointer || !scope.active) return;
 				soundManager.unlock();
-				const isOpened = openedCoords.has(coord);
-
-				pointerStart = {
-					x: e.clientX,
-					y: e.clientY,
-					time: Date.now(),
-					coord,
-				};
-
-				if (isOpened) {
-					// Add long press countdown ring
-					progressSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-					progressSvg.setAttribute("class", "animate-ring");
-					progressSvg.style.position = "absolute";
-					progressSvg.style.inset = "0";
-					progressSvg.style.width = "100%";
-					progressSvg.style.height = "100%";
-					progressSvg.style.transform = "rotate(-90deg)";
-					progressSvg.style.pointerEvents = "none";
-					progressSvg.style.padding = "4px";
-					progressSvg.innerHTML = `<circle cx="50%" cy="50%" r="38%" fill="none" stroke="#f43f5e" stroke-width="4" />`;
-					el.appendChild(progressSvg);
-
-					longPressTimer = setTimeout(() => {
-						// Restore cell to unopened
-						openedCoords.delete(coord);
-						soundManager.playRestore();
-						vibrateRestore();
-						saveState();
-						if (progressSvg) progressSvg.remove();
-						el.classList.add("animate-pop");
-						setTimeout(() => render(), 200);
-					}, 600);
-				}
-			});
-
-			el.addEventListener("pointermove", (e) => {
-				if (!pointerStart) return;
-				const dx = Math.abs(e.clientX - pointerStart.x);
-				const dy = Math.abs(e.clientY - pointerStart.y);
-				// Cancel if moved more than 10px (Req 4.2)
-				if (dx > 10 || dy > 10) {
-					if (longPressTimer) {
-						clearTimeout(longPressTimer);
-						longPressTimer = null;
-					}
-					if (progressSvg) {
-						progressSvg.remove();
-						progressSvg = null;
-					}
-				}
-			});
-
-			const handlePointerEnd = () => {
-				if (!pointerStart) return;
-				const duration = Date.now() - pointerStart.time;
-				if (longPressTimer) {
-					clearTimeout(longPressTimer);
-					longPressTimer = null;
-				}
-				if (progressSvg) {
-					progressSvg.remove();
-					progressSvg = null;
-				}
-
-				const isOpened = openedCoords.has(coord);
-				// If unopened and tapped quickly (< 400ms), punch hole
-				if (!isOpened && duration < 400 && pointerStart.coord === coord) {
-					openedCoords.add(coord);
-					soundManager.playPunch();
-					vibratePunch();
+				pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, time: Date.now(), el, coord, restored: false };
+				if (event.isTrusted) el.setPointerCapture(event.pointerId);
+				if (!openedCoords.has(coord)) return;
+				progressSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+				progressSvg.setAttribute("class", "animate-ring");
+				progressSvg.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);pointer-events:none;padding:4px");
+				progressSvg.innerHTML = '<circle cx="50%" cy="50%" r="38%" fill="none" stroke="#f43f5e" stroke-width="4" />';
+				el.appendChild(progressSvg);
+				longPressTimer = scope.timeout(() => {
+					if (!pointer) return;
+					pointer.restored = true;
+					openedCoords.delete(coord);
+					soundManager.playRestore();
+					vibrateRestore();
 					saveState();
-					el.classList.add("animate-punch");
-					setTimeout(() => render(), 150);
-				}
-
-				pointerStart = null;
-			};
-
-			el.addEventListener("pointerup", handlePointerEnd);
-			el.addEventListener("pointercancel", handlePointerEnd);
+					progressSvg?.remove();
+					el.classList.add("animate-pop");
+					scope.timeout(render, 200);
+				}, 600);
+			});
+			el.addEventListener("pointermove", (event) => {
+				if (!pointer || event.pointerId !== pointer.id) return;
+				if (Math.abs(event.clientX - pointer.x) >= 10 || Math.abs(event.clientY - pointer.y) >= 10) cancelPointer();
+			});
+			el.addEventListener("pointerup", (event) => {
+				if (!pointer || event.pointerId !== pointer.id || pointer.coord !== coord) return;
+				const shouldOpen = !pointer.restored && !openedCoords.has(coord) && Date.now() - pointer.time < 400;
+				cancelPointer();
+				if (!shouldOpen) return;
+				openedCoords.add(coord);
+				soundManager.playPunch();
+				vibratePunch();
+				saveState();
+				el.classList.add("animate-punch");
+				scope.timeout(render, 150);
+			});
+			for (const type of ["pointercancel", "lostpointercapture"]) {
+				el.addEventListener(type, (event) => {
+					if (pointer && event.pointerId === pointer.id) cancelPointer();
+				});
+			}
 		});
 
 		// Reset Card Buttons (All instances in portrait and landscape)
@@ -483,6 +477,7 @@ export function renderChildView(container) {
 					currentCard = null;
 					openedCoords = new Set(["2,2"]);
 					isBingoAchieved = false;
+					specialRuleActive = false;
 					render();
 				}
 			});
@@ -511,6 +506,8 @@ export function renderChildView(container) {
 
 	// QR Modal Presentation
 	function showQrModal() {
+		if (!screenScope.active) return;
+		const scope = screenScope.child();
 		const existing = document.getElementById("child-qr-modal");
 		if (existing) existing.remove();
 
@@ -554,9 +551,10 @@ export function renderChildView(container) {
 		`;
 
 		document.body.appendChild(modal);
+		scope.add(() => modal.remove());
 
 		// Draw QR code with local qrcode.min.js
-		const canvas = modal.querySelector("#qr-canvas");
+		const canvas = /** @type {HTMLCanvasElement} */ (modal.querySelector("#qr-canvas"));
 		if (window.QRCode && canvas) {
 			window.QRCode.toCanvas(canvas, `mobingo:child:${currentSeed}`, {
 				width: 200,
@@ -565,7 +563,7 @@ export function renderChildView(container) {
 			});
 		}
 
-		const close = () => modal.remove();
+		const close = () => scope.dispose();
 		modal.querySelector("#close-qr-btn").addEventListener("click", close);
 		modal.querySelector("#close-qr-bottom-btn").addEventListener("click", close);
 		modal.addEventListener("click", (e) => {
@@ -584,11 +582,13 @@ export function renderChildView(container) {
 	// Initial load
 	if (currentSeed) {
 		generateBingoCard(currentSeed).then((card) => {
+			if (!viewScope.active) return;
 			currentCard = card;
 			render();
 		});
 	} else {
 		render();
 	}
+	return () => viewScope.dispose();
 }
 

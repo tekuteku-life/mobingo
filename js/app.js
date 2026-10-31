@@ -28,6 +28,7 @@ if ("serviceWorker" in navigator) {
 class MobingoApp {
 	constructor() {
 		this.appEl = document.getElementById("app");
+		this.disposeView = () => {};
 		this.currentMode = loadAppMode(); // "select", "child", or "host"
 	}
 
@@ -59,7 +60,7 @@ class MobingoApp {
 		else if (this.currentMode === "child") badgeText = "参加者";
 
 		return `
-			<header class="app-header">
+			<header class="app-header ${this.currentMode === "host" ? "is-host" : ""}">
 				<div style="display:flex; align-items:center; gap:0.5rem;">
 					<button id="header-logo-btn" class="logo-btn">
 						<div class="logo-icon">M</div>
@@ -86,6 +87,7 @@ class MobingoApp {
 					<button id="header-license-btn" class="header-btn" title="ライセンス＆情報">
 						${renderIcon("shield", 18)}
 					</button>
+					${this.currentMode === "host" ? `<button id="btn-projector" class="header-btn projector-toggle" title="外部投影" disabled>${renderIcon("tv", 18)}<span>外部投影</span></button>` : ""}
 				</div>
 			</header>
 		`;
@@ -93,7 +95,7 @@ class MobingoApp {
 
 	bindHeaderEvents() {
 		const logoBtn = this.appEl.querySelector("#header-logo-btn");
-		const soundBtn = this.appEl.querySelector("#header-sound-btn");
+		const soundBtn = /** @type {HTMLButtonElement} */ (this.appEl.querySelector("#header-sound-btn"));
 		const switchBtn = this.appEl.querySelector("#header-switch-mode-btn");
 		const licenseBtn = this.appEl.querySelector("#header-license-btn");
 
@@ -112,7 +114,8 @@ class MobingoApp {
 				soundManager.unlock();
 				const next = !soundManager.getMuted();
 				soundManager.setMuted(next);
-				this.render();
+				soundBtn.innerHTML = renderIcon(next ? "volume-x" : "volume", 20);
+				soundBtn.title = next ? "ミュート解除" : "ミュート";
 			});
 		}
 
@@ -132,6 +135,8 @@ class MobingoApp {
 	}
 
 	render() {
+		this.disposeView();
+		this.disposeView = () => {};
 		this.appEl.innerHTML = `
 			${this.renderHeader()}
 			<main id="app-main" style="flex:1; display:flex; flex-direction:column; min-height:0; overflow:hidden;"></main>
@@ -142,9 +147,9 @@ class MobingoApp {
 		const mainContainer = this.appEl.querySelector("#app-main");
 
 		if (this.currentMode === "child") {
-			renderChildView(mainContainer);
+			this.disposeView = renderChildView(mainContainer);
 		} else if (this.currentMode === "host") {
-			renderHostView(mainContainer);
+			this.disposeView = renderHostView(mainContainer);
 		} else {
 			renderModeSelect(mainContainer, {
 				onSelectChild: () => this.switchMode("child"),
