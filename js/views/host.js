@@ -84,9 +84,9 @@ export function renderHostView(container) {
 		let inputSeed = parentSeed || generateRandomSeed();
 
 		container.innerHTML = `
-			<div class="setup-screen flex-1 flex flex-col justify-center" style="padding:1rem; max-width:28rem; margin:0 auto; width:100%; overflow-y:auto;">
-				<div style="text-align:center; margin-bottom:1.5rem;">
-					<div style="width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f43f5e, #f59e0b); display:flex; align-items:center; justify-content:center; box-shadow:0 15px 25px -5px rgba(244, 63, 94, 0.3); margin:0 auto 0.75rem auto; color:#fff;">
+			<div class="setup-screen host-setup-screen">
+				<div class="setup-intro" style="text-align:center; margin-bottom:1.5rem;">
+					<div class="setup-logo" style="width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f43f5e, #f59e0b); display:flex; align-items:center; justify-content:center; box-shadow:0 15px 25px -5px rgba(244, 63, 94, 0.3); margin:0 auto 0.75rem auto; color:#fff;">
 						${renderIcon("trophy", 32)}
 					</div>
 					<h1 style="font-size:1.75rem; font-weight:900; color:#fff;">開催者セットアップ</h1>
@@ -94,7 +94,7 @@ export function renderHostView(container) {
 				</div>
 
 				<!-- Mode Selection -->
-				<div style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.25rem;">
+				<div class="host-setup-options" style="display:flex; flex-direction:column; gap:0.75rem; margin-bottom:1.25rem;">
 					<div
 						id="opt-mode-b"
 						class="mode-card"
@@ -134,6 +134,7 @@ export function renderHostView(container) {
 					</div>
 				</div>
 
+				<div class="host-setup-controls">
 				<!-- Parent Seed -->
 				<div style="background:#0f172a; border:1px solid #1e293b; border-radius:1rem; padding:1rem; margin-bottom:1.25rem; width:100%; box-sizing:border-box;">
 					<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
@@ -175,6 +176,7 @@ export function renderHostView(container) {
 					<span>${gameMode === 'mode_a' ? '参加者QRの事前受付へ進む' : 'ビンゴゲームを開始する'}</span>
 					${renderIcon("arrow-right", 20)}
 				</button>
+				</div>
 			</div>
 		`;
 
@@ -237,9 +239,9 @@ export function renderHostView(container) {
 		let scanCoolDown = 0;
 
 		container.innerHTML = `
-			<div style="flex:1; display:flex; flex-direction:column; justify-content:space-between; max-width:28rem; margin:0 auto; width:100%; padding:1rem; height:100%; overflow:hidden;">
+			<div class="scanner-screen">
 				<!-- Top bar -->
-				<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-shrink:0;">
+				<div class="scanner-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-shrink:0;">
 					<button id="scanner-back-btn" class="header-btn" style="background:#0f172a; padding:0.4rem 0.75rem; border:1px solid #1e293b; border-radius:0.5rem; font-size:0.75rem; color:#cbd5e1;">
 						← 戻る
 					</button>
@@ -252,7 +254,7 @@ export function renderHostView(container) {
 				</div>
 
 				<!-- Camera Feed -->
-				<div style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:1.25rem; overflow:hidden; border:1px solid #334155; margin-bottom:0.75rem; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+				<div class="scanner-camera" style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:1.25rem; overflow:hidden; border:1px solid #334155; margin-bottom:0.75rem; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
 					<video id="scanner-video" style="width:100%; height:100%; object-fit:cover;" playsinline></video>
 					<canvas id="scanner-canvas" style="display:none;"></canvas>
 
@@ -288,7 +290,7 @@ export function renderHostView(container) {
 				</form>
 
 				<!-- Registered Chips List -->
-				<div style="flex:1; background:rgba(15,23,42,0.8); border:1px solid #1e293b; border-radius:1rem; padding:0.6rem; overflow-y:auto; min-height:0; margin-bottom:0.75rem;">
+				<div class="scanner-list" style="flex:1; background:rgba(15,23,42,0.8); border:1px solid #1e293b; border-radius:1rem; padding:0.6rem; overflow-y:auto; min-height:0; margin-bottom:0.75rem;">
 					<div style="font-size:0.7rem; font-weight:700; color:#94a3b8; margin-bottom:0.4rem;">登録済み一覧</div>
 					<div id="scanner-chips" style="display:flex; flex-wrap:wrap; gap:0.35rem;"></div>
 				</div>
@@ -657,7 +659,7 @@ export function renderHostView(container) {
 					</div>
 
 					<!-- Controls Toolbar -->
-					<div class="host-controls-toolbar" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:0.35rem; flex-shrink:0;">
+					<div class="host-controls-toolbar" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.35rem; flex-shrink:0;">
 						<button id="btn-undo-ball" class="btn-secondary" style="padding:0.6rem 0.2rem; border-radius:0.75rem; font-size:0.7rem; display:flex; flex-direction:column; align-items:center; gap:0.2rem;" ${currentTurn === 0 ? 'disabled style="opacity:0.4;"' : ''}>
 							<span style="color:#fbbf24;">${renderIcon("undo", 16)}</span>
 							<span>1手戻す</span>
@@ -673,10 +675,7 @@ export function renderHostView(container) {
 							<span>当選照合</span>
 						</button>
 
-						<button id="btn-projector" class="btn-secondary" style="padding:0.6rem 0.2rem; border-radius:0.75rem; font-size:0.7rem; display:flex; flex-direction:column; align-items:center; gap:0.2rem;">
-							<span style="color:#818cf8;">${renderIcon("tv", 16)}</span>
-							<span>外部投影</span>
-						</button>
+
 					</div>
 
 					${
@@ -748,7 +747,7 @@ export function renderHostView(container) {
 		const matrixPanel = container.querySelector("#full-matrix-panel");
 		const specialBtn = container.querySelector("#btn-unlock-special");
 		const verifyBtn = container.querySelector("#btn-verify-qr");
-		const projectorBtn = container.querySelector("#btn-projector");
+		const projectorBtn = /** @type {HTMLButtonElement} */ (document.querySelector("#btn-projector"));
 		const resetBtn = container.querySelector("#btn-reset-game");
 		const dobeBtn = container.querySelector("#btn-dobe-award");
 		const wheelArena = container.querySelector("#wheel-arena");
@@ -892,8 +891,12 @@ export function renderHostView(container) {
 		});
 
 		// Projector View
-		projectorBtn.addEventListener("click", () => {
-			showProjectorView();
+		projectorBtn.disabled = false;
+		const openProjector = () => showProjectorView();
+		projectorBtn.addEventListener("click", openProjector);
+		scope.add(() => {
+			projectorBtn.removeEventListener("click", openProjector);
+			projectorBtn.disabled = true;
 		});
 
 		// Dobe Award
@@ -920,7 +923,7 @@ export function renderHostView(container) {
 		modal.id = "host-verify-modal";
 		modal.className = "modal-overlay";
 		modal.innerHTML = `
-			<div class="modal-content animate-fade-in" style="max-height:92vh; overflow-y:auto;">
+			<div class="modal-content animate-fade-in" style="overflow-y:auto;">
 				<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:0.75rem; margin-bottom:0.75rem;">
 					<div style="display:flex; align-items:center; gap:0.4rem; font-weight:800; color:#fbbf24;">
 						${renderIcon("trophy", 20)}
@@ -971,7 +974,7 @@ export function renderHostView(container) {
 			const content = body.querySelector("#verify-tab-content");
 			if (tab === "camera") {
 				content.innerHTML = `
-					<div style="position:relative; width:100%; aspect-ratio:4/3; background:#000; border-radius:1rem; overflow:hidden; border:1px solid #334155; display:flex; align-items:center; justify-content:center;">
+					<div class="verify-camera-stage" style="position:relative; width:100%; aspect-ratio:4/3; background:#000; border-radius:1rem; overflow:hidden; border:1px solid #334155; display:flex; align-items:center; justify-content:center;">
 						<video id="v-video" style="width:100%; height:100%; object-fit:cover;" playsinline></video>
 						<canvas id="v-canvas" style="display:none;"></canvas>
 						<div style="position:absolute; inset:0; border:2px solid rgba(99,102,241,0.5); border-radius:1rem; pointer-events:none; display:flex; align-items:center; justify-content:center;">
@@ -1081,7 +1084,7 @@ export function renderHostView(container) {
 			body.innerHTML = `
 				<div style="display:flex; flex-direction:column; gap:0.75rem;">
 					<!-- Status Banner -->
-					<div style="padding:0.75rem; border-radius:1rem; border:1px solid ${
+					<div class="verify-result-message" style="padding:0.75rem; border-radius:1rem; border:1px solid ${
 						result.isValidWin ? 'rgba(16,185,129,0.5)' : 'rgba(239,68,68,0.5)'
 					}; background:${result.isValidWin ? 'rgba(6,78,59,0.3)' : 'rgba(136,19,55,0.3)'}; color:${
 						result.isValidWin ? '#6ee7b7' : '#fca5a5'
@@ -1125,7 +1128,7 @@ export function renderHostView(container) {
 									const isMatched = result.matchedCellIndices.has(coord);
 
 									return `
-										<div style="height:2rem; border-radius:0.35rem; display:flex; align-items:center; justify-content:center; border:1px solid ${
+										<div data-verify-coord="${coord}" style="height:2rem; border-radius:0.35rem; display:flex; align-items:center; justify-content:center; border:1px solid ${
 											isFree
 												? '#fbbf24'
 												: isMatched
@@ -1178,25 +1181,10 @@ export function renderHostView(container) {
 		const drawnSet = new Set(history);
 
 
-		const getBallBg = (n) => {
-			if (n <= 15) return "linear-gradient(135deg, #ef4444, #b91c1c)";
-			if (n <= 30) return "linear-gradient(135deg, #f97316, #c2410c)";
-			if (n <= 45) return "linear-gradient(135deg, #eab308, #a16207)";
-			if (n <= 60) return "linear-gradient(135deg, #22c55e, #15803d)";
-			return "linear-gradient(135deg, #3b82f6, #1d4ed8)";
-		};
 
 		const proj = document.createElement("div");
 		proj.id = "projector-view";
-		proj.style.position = "fixed";
-		proj.style.inset = "0";
-		proj.style.zIndex = "100";
-		proj.style.background = "#030712";
-		proj.style.color = "#fff";
-		proj.style.display = "flex";
-		proj.style.flexDirection = "column";
-		proj.style.padding = "1rem";
-		proj.style.overflow = "hidden";
+		proj.className = "projector-view";
 
 		const columns = [
 			{ label: "B", range: [1, 15], color: "#f87171" },
@@ -1207,107 +1195,32 @@ export function renderHostView(container) {
 		];
 
 		proj.innerHTML = `
-			<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:0.75rem; margin-bottom:1rem; flex-shrink:0;">
-				<div style="display:flex; align-items:center; gap:0.75rem;">
-					<div class="logo-icon" style="width:2.25rem; height:2.25rem; font-size:1.1rem;">M</div>
-					<h1 style="font-size:1.5rem; font-weight:900; letter-spacing:0.05em; background:linear-gradient(135deg, #fbbf24, #818cf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
-						MOBINGO ライブ出目
-					</h1>
-					${
-						specialRuleTurn !== null
-							? `<span class="badge" style="background:rgba(245,158,11,0.2); color:#fbbf24; border-color:rgba(245,158,11,0.4);">
-									★特殊役解禁中
-									</span>`
-							: ""
-					}
+			<header class="projector-header">
+				<div class="projector-heading">
+					<div class="logo-icon">M</div>
+					<h1>ライブ出目</h1>
+					${specialRuleTurn !== null ? '<span class="badge">★特殊役解禁中</span>' : ''}
 				</div>
-
-				<button id="close-proj-btn" class="btn-secondary" style="padding:0.4rem 0.75rem; border-radius:0.5rem; font-size:0.75rem;">
-					操作画面へ戻る
-				</button>
-			</div>
-
-			<div style="flex:1; display:grid; grid-template-columns:5fr 7fr; gap:1.5rem; min-height:0; align-items:center;">
-				<!-- Left: Bingo Drum & Giant Ball on Projector -->
-				<div style="background:#0f172a; border:1px solid #1e293b; border-radius:2rem; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:1.5rem;">
-					<span style="font-size:0.85rem; font-weight:800; color:#94a3b8; margin-bottom:0.5rem; letter-spacing:0.05em;">
-						${history.length > 0 ? `第 ${history.length} 手` : "抽選待機中"}
-					</span>
-
-					<div class="barrel-cage-container" style="max-width:300px; max-height:240px; margin-bottom:0.75rem;">
-						<canvas id="proj-barrel-canvas" class="barrel-canvas"></canvas>
+				<button id="close-proj-btn" class="projector-toggle btn-secondary">操作に戻る</button>
+			</header>
+			<div class="projector-body">
+				<section class="projector-hero" aria-label="最新の出目">
+					<div class="projector-barrel"><canvas id="proj-barrel-canvas" class="barrel-canvas"></canvas></div>
+					<div class="projector-summary">
+						<p class="projector-turn">${history.length > 0 ? `第 ${history.length} 手` : '抽選待機中'}</p>
+						<div class="projector-current">${currentBall !== null ? `<span class="projector-ball-letter">${getBallLetter(currentBall)}</span><strong>${currentBall}</strong>` : '<span class="projector-waiting">まだ排出されていません</span>'}</div>
+						<div class="projector-history" aria-label="直近履歴">${history.slice(-6, -1).reverse().map(number => `<span>${number}</span>`).join('')}</div>
 					</div>
-
-					<div style="display:flex; align-items:center; gap:0.5rem; background:#030712; padding:0.35rem 1rem; border-radius:9999px; border:1px solid #334155; margin-bottom:0.5rem;">
-						${
-							currentBall !== null
-								? `<span style="font-weight:900; font-size:1.25rem; color:#fff; display:flex; align-items:center; gap:0.4rem;">
-										<span style="color:#fbbf24;">${getBallLetter(currentBall)}</span>
-										<span class="font-mono">${currentBall}</span>
-										</span>`
-								: `<span style="font-size:0.85rem; color:#64748b;">まだ排出されていません</span>`
-						}
+				</section>
+				<section class="projector-board" aria-label="1から75の出目ボード">
+					<div class="projector-board-heading"><h2>出目ボード</h2><span>${history.length} / 75</span></div>
+					<div class="projector-matrix">${columns.map(column => `
+						<div class="projector-column">
+							<div class="projector-letter" style="color:${column.color}">${column.label}</div>
+							<div class="projector-numbers">${Array.from({length:15},(_,index)=>column.range[0]+index).map(number => `<span data-projector-ball="${number}" class="projector-number ${currentBall === number ? 'is-latest' : drawnSet.has(number) ? 'is-drawn' : ''}">${number}</span>`).join('')}</div>
+						</div>`).join('')}
 					</div>
-
-					<div style="margin-top:1.5rem; display:flex; align-items:center; gap:0.5rem;">
-						<span style="font-size:0.8rem; color:#64748b;">直近履歴:</span>
-						<div style="display:flex; gap:0.4rem;">
-							${history
-								.slice(-6, -1)
-								.reverse()
-								.map(
-									(n) => `
-								<div style="width:2.25rem; height:2.25rem; border-radius:9999px; background:#1e293b; border:1px solid #334155; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-weight:800; font-size:0.8rem; color:#fde047;">
-									${n}
-								</div>
-							`
-								)
-								.join("")}
-						</div>
-					</div>
-				</div>
-
-				<!-- Right: 1-75 Matrix -->
-				<div style="background:#0f172a; border:1px solid #1e293b; border-radius:2rem; height:100%; display:flex; flex-direction:column; padding:1.25rem; overflow-y:auto;">
-					<div style="display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; font-weight:800; color:#94a3b8; margin-bottom:0.75rem;">
-						<span>出目ボード (1〜75 点灯マトリクス)</span>
-						<span class="font-mono" style="color:#fbbf24;">${history.length} / 75</span>
-					</div>
-
-					<div style="flex:1; display:grid; grid-template-columns:repeat(5, 1fr); gap:0.5rem; min-height:0;">
-						${columns
-							.map((col) => {
-								const nums = Array.from({ length: 15 }, (_, i) => col.range[0] + i);
-								return `
-								<div style="background:#030712; border-radius:1rem; border:1px solid #1e293b; padding:0.4rem; display:flex; flex-direction:column;">
-									<div style="text-align:center; font-weight:900; font-size:1.15rem; color:${col.color}; border-bottom:1px solid #1e293b; padding-bottom:0.25rem; margin-bottom:0.35rem;">
-										${col.label}
-									</div>
-									<div style="flex:1; display:grid; grid-template-rows:repeat(15, 1fr); gap:0.2rem;">
-										${nums
-											.map((n) => {
-												const isDrawn = drawnSet.has(n);
-												const isLatest = currentBall === n;
-												return `
-												<div style="display:flex; align-items:center; justify-content:center; border-radius:0.25rem; font-family:var(--font-mono); font-size:0.8rem; font-weight:800; ${
-													isLatest
-														? 'background:#fbbf24; color:#030712; font-weight:900; transform:scale(1.05); box-shadow:0 0 10px rgba(251,191,36,0.6);'
-														: isDrawn
-														? 'background:#4f46e5; color:#fff;'
-														: 'background:rgba(15,23,42,0.4); color:#475569;'
-												}">
-													${n}
-												</div>
-											`;
-											})
-											.join("")}
-									</div>
-								</div>
-							`;
-							})
-							.join("")}
-					</div>
-				</div>
+				</section>
 			</div>
 		`;
 
@@ -1330,7 +1243,7 @@ export function renderHostView(container) {
 	function showSpecialCutIn() {
 		const scope = beginScreen();
 		const splash = document.createElement("div");
-		splash.className = "modal-overlay animate-fade-in";
+		splash.className = "modal-overlay special-splash animate-fade-in";
 		splash.style.zIndex = "100";
 		splash.innerHTML = `
 			<div style="text-align:center; animation:bounce 1s infinite;">
@@ -1373,7 +1286,7 @@ export function renderHostView(container) {
 						.slice(0, 3)
 						.map(
 							(item, idx) => `
-						<div style="background:#030712; border:1px solid #1e293b; border-radius:0.75rem; padding:0.6rem 0.75rem; display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; font-weight:800;">
+						<div data-award-seed="${item.seed}" style="background:#030712; border:1px solid #1e293b; border-radius:0.75rem; padding:0.6rem 0.75rem; display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; font-weight:800;">
 							<span style="color:#94a3b8;">第 ${idx + 1} 位</span>
 							<span class="font-mono" style="font-size:1.2rem; color:#fbbf24;">${item.seed}</span>
 							<span style="color:#e2e8f0;">${item.count} マス開</span>

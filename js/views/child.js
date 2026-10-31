@@ -45,8 +45,9 @@ export function renderChildView(container) {
 		let inputSeed = currentSeed || generateRandomSeed();
 
 		container.innerHTML = `
-			<div class="setup-screen flex-1 flex flex-col items-center justify-center" style="padding:1rem; max-width:24rem; margin:0 auto; width:100%; text-align:center;">
-				<div style="width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f59e0b, #4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 15px 25px -5px rgba(79, 70, 229, 0.3); margin-bottom:1.25rem;">
+			<div class="setup-screen child-setup-screen">
+				<div class="setup-intro">
+				<div class="setup-logo" style="width:4.5rem; height:4.5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f59e0b, #4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 15px 25px -5px rgba(79, 70, 229, 0.3); margin-bottom:1.25rem;">
 					${renderIcon("sparkles", 32)}
 				</div>
 
@@ -55,6 +56,7 @@ export function renderChildView(container) {
 					あなた専用の4文字ID（シード値）から暗号学的にビンゴカードを生成します。
 				</p>
 
+				</div>
 				<form id="child-setup-form" style="width:100%; display:flex; flex-direction:column; gap:1rem;">
 					<div style="background:#0f172a; border:1px solid #1e293b; border-radius:1rem; padding:1.25rem; box-shadow:0 10px 15px -3px rgba(0,0,0,0.5);">
 						<label style="font-size:0.75rem; font-weight:700; color:#94a3b8; display:block; margin-bottom:0.5rem;">

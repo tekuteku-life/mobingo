@@ -60,7 +60,7 @@ class MobingoApp {
 		else if (this.currentMode === "child") badgeText = "参加者";
 
 		return `
-			<header class="app-header">
+			<header class="app-header ${this.currentMode === "host" ? "is-host" : ""}">
 				<div style="display:flex; align-items:center; gap:0.5rem;">
 					<button id="header-logo-btn" class="logo-btn">
 						<div class="logo-icon">M</div>
@@ -87,6 +87,7 @@ class MobingoApp {
 					<button id="header-license-btn" class="header-btn" title="ライセンス＆情報">
 						${renderIcon("shield", 18)}
 					</button>
+					${this.currentMode === "host" ? `<button id="btn-projector" class="header-btn projector-toggle" title="外部投影" disabled>${renderIcon("tv", 18)}<span>外部投影</span></button>` : ""}
 				</div>
 			</header>
 		`;
