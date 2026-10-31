@@ -1,3 +1,4 @@
+import { normalizeDisplayName, buildParticipantQr, escapeHtml } from "../core/identity.js";
 import { createScope } from "../core/lifecycle.js";
 import { sanitizeSeedInput, isValidSeed, generateRandomSeed } from "../core/base32.js";
 import { generateBingoCard, calculateReachAndBingo, FREE_CELL, SPECIAL_PATTERNS } from "../core/bingo.js";
@@ -23,6 +24,7 @@ export function renderChildView(container) {
 	let currentSeed = saved ? saved.childSeed : "";
 	let openedCoords = new Set(saved ? saved.openedCellCoords : ["2,2"]);
 	let specialRuleActive = saved ? !!saved.specialRuleActive : false;
+	let displayName = saved?.displayName ?? "";
 	let currentCard = null;
 	let isBingoAchieved = false;
 
@@ -58,7 +60,7 @@ export function renderChildView(container) {
 
 				</div>
 				<form id="child-setup-form" style="width:100%; display:flex; flex-direction:column; gap:1rem;">
-					<div style="background:#0f172a; border:1px solid #1e293b; border-radius:1rem; padding:1.25rem; box-shadow:0 10px 15px -3px rgba(0,0,0,0.5);">
+					<div class="child-seed-field" style="background:#0f172a; border:1px solid #1e293b; border-radius:1rem; padding:1.25rem; box-shadow:0 10px 15px -3px rgba(0,0,0,0.5);">
 						<label style="font-size:0.75rem; font-weight:700; color:#94a3b8; display:block; margin-bottom:0.5rem;">
 							あなたのカードID（Crockford 4文字）
 						</label>
@@ -90,6 +92,10 @@ export function renderChildView(container) {
 						</span>
 					</div>
 
+					<label class="name-field">表示名（任意・32文字まで）
+						<input id="child-name-input" class="name-input" type="text" maxlength="256" autocomplete="nickname" value="${escapeHtml(displayName)}" />
+					</label>
+					<p id="setup-name-error" class="form-error" role="alert"></p>
 					<button
 						id="btn-start-card"
 						type="submit"
@@ -121,12 +127,18 @@ export function renderChildView(container) {
 			e.preventDefault();
 			soundManager.unlock();
 			const seed = sanitizeSeedInput(input.value);
+			const name = normalizeDisplayName(container.querySelector("#child-name-input").value);
+			if (name === null) {
+				container.querySelector("#setup-name-error").textContent = "表示名は制御文字を含めず32文字以内で入力してください。";
+				return;
+			}
 			if (isValidSeed(seed)) {
 				soundManager.playPunch();
 				const request = ++requestId;
 				const card = await generateBingoCard(seed);
 				if (!scope.active || request !== requestId) return;
 				currentSeed = seed;
+				displayName = name;
 				openedCoords = new Set(["2,2"]);
 				currentCard = card;
 				saveState();
@@ -225,6 +237,10 @@ export function renderChildView(container) {
 			<div class="child-dashboard-container">
 				<!-- Left Area: Card & Portrait Header/Footer -->
 				<div class="child-card-area">
+					<div class="child-portrait-name participant-name-row">
+						<span class="name-text" title="${escapeHtml(displayName)}">${escapeHtml(displayName) || "表示名なし"}</span>
+						<button class="btn-edit-name btn-secondary">名前を編集</button>
+					</div>
 					<!-- Header: Seed ID & Reach (Portrait only) -->
 					<div class="child-portrait-header">
 						<div style="display:flex; align-items:center; gap:0.4rem;">
@@ -235,10 +251,6 @@ export function renderChildView(container) {
 						</div>
 						<div style="display:flex; align-items:center; gap:0.35rem;">
 							${reachBadgePortrait}
-							<button class="btn-action-reset-card btn-child-reset-visible" title="カードを作り直す">
-								${renderIcon("refresh", 13)}
-								<span>カード再作成</span>
-							</button>
 						</div>
 					</div>
 
@@ -320,7 +332,7 @@ export function renderChildView(container) {
 						</div>
 
 						<!-- Bottom Visible Reset Button (Portrait) -->
-						<button class="btn-action-reset-card btn-child-reset-visible" style="width:100%; justify-content:center; padding:0.4rem; font-size:0.7rem; border-radius:0.6rem;">
+						<button class="btn-action-reset-card btn-child-reset-visible" style="justify-content:center; padding:0.3rem 0.55rem; font-size:0.7rem; border-radius:0.6rem;">
 							${renderIcon("refresh", 13)}
 							<span>カードを作り直す（リセット）</span>
 						</button>
@@ -355,6 +367,10 @@ export function renderChildView(container) {
 							</div>
 						</div>
 
+						<div class="participant-name-row">
+							<span class="name-text" title="${escapeHtml(displayName)}">${escapeHtml(displayName) || "表示名なし"}</span>
+							<button class="btn-edit-name btn-secondary">名前を編集</button>
+						</div>
 						<!-- Assist Bar in Landscape -->
 						<div style="background:rgba(3,7,18,0.7); border:1px solid #1e293b; border-radius:0.75rem; padding:0.6rem; margin-bottom:0.6rem;">
 							${assistBarContent}
@@ -387,7 +403,7 @@ export function renderChildView(container) {
 
 						<button
 							class="btn-action-reset-card btn-child-reset-visible"
-							style="padding:0.55rem; border-radius:0.75rem; font-size:0.75rem; display:flex; align-items:center; justify-content:center; gap:0.4rem; width:100%; margin-top:0.2rem;"
+							style="padding:0.3rem 0.55rem; border-radius:0.6rem; font-size:0.7rem; display:flex; align-items:center; justify-content:center; gap:0.4rem; margin-top:0.2rem; align-self:flex-end;"
 						>
 							${renderIcon("refresh", 14)}
 							<span>カードを作り直す（リセット）</span>
@@ -428,8 +444,10 @@ export function renderChildView(container) {
 				if (!openedCoords.has(coord)) return;
 				progressSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 				progressSvg.setAttribute("class", "animate-ring");
-				progressSvg.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);pointer-events:none;padding:4px");
-				progressSvg.innerHTML = '<circle cx="50%" cy="50%" r="38%" fill="none" stroke="#f43f5e" stroke-width="4" />';
+				progressSvg.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%;pointer-events:none");
+				progressSvg.setAttribute("viewBox", "0 0 100 100");
+				progressSvg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+				progressSvg.innerHTML = '<circle cx="50" cy="50" r="42" pathLength="100" transform="rotate(-90 50 50)" fill="none" stroke="#f43f5e" stroke-width="4" />';
 				el.appendChild(progressSvg);
 				longPressTimer = scope.timeout(() => {
 					if (!pointer) return;
@@ -474,6 +492,7 @@ export function renderChildView(container) {
 				if (confirm("カードを破棄して、参加者IDの入力（新規カード作成）に戻りますか？\n（現在の穴あけ状態はリセットされます）")) {
 					clearChildState();
 					currentSeed = "";
+					displayName = "";
 					currentCard = null;
 					openedCoords = new Set(["2,2"]);
 					isBingoAchieved = false;
@@ -494,6 +513,10 @@ export function renderChildView(container) {
 			});
 		});
 
+		container.querySelectorAll(".btn-edit-name").forEach((button) => {
+			button.addEventListener("click", () => { if (scope.active) showNameModal(); });
+		});
+
 		// Show QR Modal (Both portrait and landscape)
 		const qrButtons = container.querySelectorAll(".btn-action-show-qr");
 		qrButtons.forEach((btn) => {
@@ -502,6 +525,37 @@ export function renderChildView(container) {
 				showQrModal();
 			});
 		});
+	}
+
+	function showNameModal() {
+		const scope = screenScope.child();
+		const modal = document.createElement("div");
+		modal.id = "child-name-modal";
+		modal.className = "modal-overlay";
+		modal.innerHTML = `<form class="modal-content" id="edit-name-form">
+			<h2>表示名を編集</h2>
+			<label class="name-field">表示名（任意・32文字まで）<input id="edit-name-input" class="name-input" type="text" maxlength="256" autocomplete="nickname" value="${escapeHtml(displayName)}" /></label>
+			<p id="name-error" class="form-error" role="alert"></p>
+			<button id="save-name-btn" type="submit" class="btn-primary">保存する</button>
+			<button id="cancel-name-btn" type="button" class="btn-secondary">キャンセル</button>
+		</form>`;
+		document.body.appendChild(modal);
+		scope.add(() => modal.remove());
+		modal.querySelector("#edit-name-form").addEventListener("submit", (event) => {
+			event.preventDefault();
+			if (!scope.active) return;
+			const name = normalizeDisplayName((/** @type {HTMLInputElement} */ (modal.querySelector("#edit-name-input"))).value);
+			if (name === null) {
+				modal.querySelector("#name-error").textContent = "表示名は制御文字を含めず32文字以内で入力してください。";
+				return;
+			}
+			displayName = name;
+			saveState();
+			scope.dispose();
+			render();
+		});
+		modal.querySelector("#cancel-name-btn").addEventListener("click", () => scope.dispose());
+		modal.addEventListener("click", (event) => { if (event.target === modal) scope.dispose(); });
 	}
 
 	// QR Modal Presentation
@@ -537,6 +591,7 @@ export function renderChildView(container) {
 					<canvas id="qr-canvas"></canvas>
 				</div>
 
+				<div class="identity-label">${escapeHtml(displayName)}</div>
 				<div style="margin-bottom:1rem;">
 					<span style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:0.25rem;">あなたのカードID（手入力用）</span>
 					<span class="font-mono" style="font-size:2rem; font-weight:900; letter-spacing:0.15em; color:#fbbf24; background:#030712; padding:0.25rem 1rem; border-radius:0.75rem; border:1px solid #1e293b; display:inline-block;">
@@ -556,7 +611,7 @@ export function renderChildView(container) {
 		// Draw QR code with local qrcode.min.js
 		const canvas = /** @type {HTMLCanvasElement} */ (modal.querySelector("#qr-canvas"));
 		if (window.QRCode && canvas) {
-			window.QRCode.toCanvas(canvas, `mobingo:child:${currentSeed}`, {
+			window.QRCode.toCanvas(canvas, buildParticipantQr(currentSeed, displayName), {
 				width: 200,
 				margin: 1,
 				color: { dark: "#0f172a", light: "#ffffff" },
@@ -574,6 +629,7 @@ export function renderChildView(container) {
 	function saveState() {
 		saveChildState({
 			childSeed: currentSeed,
+			displayName,
 			openedCellCoords: Array.from(openedCoords),
 			specialRuleActive,
 		});

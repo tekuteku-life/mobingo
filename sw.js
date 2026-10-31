@@ -1,5 +1,5 @@
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
-const CACHE_NAME = 'mobingo-v1.0.2';
+const CACHE_NAME = 'mobingo-v1.1.0';
 const STATIC_ASSETS = [
 	'./',
 	'./index.html',
@@ -18,6 +18,8 @@ const STATIC_ASSETS = [
 	'./js/core/haptics.js',
 	'./js/core/wakelock.js',
 	'./js/core/storage.js',
+	'./js/core/identity.js',
+	'./js/core/ranking.js',
 	'./js/core/lifecycle.js',
 	'./js/core/icons.js',
 	'./js/views/mode-select.js',

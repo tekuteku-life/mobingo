@@ -1,5 +1,7 @@
+import { parseParticipantQr, escapeHtml } from "../core/identity.js";
+import { buildWinnerRanking } from "../core/ranking.js";
 import { createScope } from "../core/lifecycle.js";
-import { sanitizeSeedInput, isValidSeed, generateRandomSeed, parseQrSeed } from "../core/base32.js";
+import { sanitizeSeedInput, isValidSeed, generateRandomSeed } from "../core/base32.js";
 import {
 	generateDrawSequence,
 	generateBingoCard,
@@ -35,6 +37,11 @@ export function renderHostView(container) {
 	let currentTurn = saved ? saved.currentTurn : 0;
 	let specialRuleTurn = saved ? saved.specialRuleTurn : null;
 	let registeredSeeds = saved && saved.registeredChildSeeds ? saved.registeredChildSeeds : [];
+	let participantNames = { ...(saved?.participantNames ?? {}) };
+	let verifiedChildSeeds = saved?.verifiedChildSeeds ?? [];
+	function participantLabel(seed) {
+		return participantNames[seed] ? `${participantNames[seed]} (${seed})` : seed;
+	}
 	let drawSequence = [];
 	let isGameStarted = false;
 
@@ -47,11 +54,7 @@ export function renderHostView(container) {
 				if (!viewScope.active) return;
 				drawSequence = seq;
 				isGameStarted = true;
-				if (gameMode === "mode_a") {
-					loadChildCards().then(() => render());
-				} else {
-					render();
-				}
+				loadChildCards().then(() => render());
 			});
 		} else {
 			render();
@@ -60,7 +63,8 @@ export function renderHostView(container) {
 
 	async function loadChildCards(scope = viewScope) {
 		const cards = new Map();
-		for (const seed of registeredSeeds) {
+		const candidates = gameMode === "mode_a" ? [...registeredSeeds, ...verifiedChildSeeds] : verifiedChildSeeds;
+		for (const seed of new Set(candidates)) {
 			const card = await generateBingoCard(seed);
 			if (!scope.active) return;
 			cards.set(seed, card);
@@ -323,7 +327,7 @@ export function renderHostView(container) {
 				.map(
 					(seed) => `
 					<div style="background:#030712; border:1px solid #1e293b; border-radius:0.5rem; padding:0.2rem 0.5rem; display:flex; align-items:center; gap:0.35rem; font-size:0.75rem;">
-						<span class="font-mono" style="font-weight:700; color:#fbbf24;">${seed}</span>
+						<span class="font-mono" style="font-weight:700; color:#fbbf24;">${escapeHtml(participantLabel(seed))}</span>
 						<button class="remove-chip-btn" data-seed="${seed}" style="background:none; border:none; color:#64748b; cursor:pointer; padding:0.1rem;">
 							${renderIcon("close", 14)}
 						</button>
@@ -341,6 +345,7 @@ export function renderHostView(container) {
 					if (finishing) return;
 					const s = btn.getAttribute("data-seed");
 					registeredSeeds = registeredSeeds.filter((item) => item !== s);
+					if (!verifiedChildSeeds.includes(s)) delete participantNames[s];
 					renderChips();
 				});
 			});
@@ -354,26 +359,27 @@ export function renderHostView(container) {
 				toast.style.background = "rgba(136, 19, 55, 0.9)";
 				toast.style.color = "#fecdd3";
 				toast.style.border = "1px solid #f43f5e";
-				toast.innerHTML = `<span>⚠️ 既に登録済み: <strong class="font-mono">${seed}</strong></span><span style="font-size:0.65rem;">次をどうぞ</span>`;
+				toast.innerHTML = `<span>⚠️ 既に登録済み: <strong class="font-mono">${escapeHtml(participantLabel(seed))}</strong></span><span style="font-size:0.65rem;">次をどうぞ</span>`;
 			} else {
 				toast.style.background = "rgba(6, 78, 59, 0.9)";
 				toast.style.color = "#a7f3d0";
 				toast.style.border = "1px solid #10b981";
-				toast.innerHTML = `<span>✅ 登録成功: <strong class="font-mono">${seed}</strong></span><span style="font-size:0.65rem;">次をどうぞ</span>`;
+				toast.innerHTML = `<span>✅ 登録成功: <strong class="font-mono">${escapeHtml(participantLabel(seed))}</strong></span><span style="font-size:0.65rem;">次をどうぞ</span>`;
 			}
 		}
 
-		function addSeed(seed) {
-			if (finishing || !isValidSeed(seed)) return;
+		function addSeed(seed, displayName = null) {
+			if (!scope.active || finishing || !isValidSeed(seed)) return;
 			const isDup = registeredSeeds.includes(seed);
+			if (displayName !== null) participantNames[seed] = displayName;
 			showToast(seed, isDup);
 			if (!isDup) {
 				soundManager.playScanBeep();
 				registeredSeeds.push(seed);
-				renderChips();
 			} else {
 				soundManager.playBallEjected();
 			}
+			renderChips();
 		}
 
 		// Camera loop
@@ -406,10 +412,10 @@ export function renderHostView(container) {
 
 				const now = Date.now();
 				if (code && code.data && now > scanCoolDown) {
-					const s = parseQrSeed(code.data);
-					if (s !== null) {
+					const identity = parseParticipantQr(code.data);
+					if (identity !== null) {
 						scanCoolDown = now + 1200;
-						addSeed(s);
+						addSeed(identity.seed, identity.displayName);
 					}
 				}
 			}
@@ -487,6 +493,7 @@ export function renderHostView(container) {
 			const nextBall = currentTurn < 75 ? drawSequence[currentTurn] : null;
 
 			childCardsMap.forEach((card, seed) => {
+				if (!registeredSeeds.includes(seed)) return;
 				const opened = new Set(["2,2"]);
 				let count = 0;
 				for (const cell of card.cells) {
@@ -533,7 +540,7 @@ export function renderHostView(container) {
 			<div class="host-dashboard-container">
 				<!-- Left Column: Controls & Drum -->
 				<div class="host-dashboard-left">
-				${gameMode === "mode_a" && bingoSeeds.length > 0 ? `<div id="host-bingo-winners" style="flex-shrink:0;max-height:3rem;overflow-y:auto;background:#064e3b;border-radius:0.5rem;padding:0.25rem;font-size:0.75rem;">ビンゴ成立者: ${bingoSeeds.join(", ")}</div>` : ""}
+				${gameMode === "mode_a" && bingoSeeds.length > 0 ? `<div id="host-bingo-winners" style="flex-shrink:0;max-height:3rem;overflow-y:auto;background:#064e3b;border-radius:0.5rem;padding:0.25rem;font-size:0.75rem;">ビンゴ成立者: ${bingoSeeds.map(seed => escapeHtml(participantLabel(seed))).join(", ")}</div>` : ""}
 					<!-- Top Info -->
 					<div style="display:flex; flex-direction:column; gap:0.35rem; margin-bottom:0.25rem; flex-shrink:0;">
 						<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.35rem; background:#0f172a; border:1px solid #1e293b; border-radius:1rem; padding:0.4rem 0.65rem; width:100%; box-sizing:border-box;">
@@ -659,7 +666,7 @@ export function renderHostView(container) {
 					</div>
 
 					<!-- Controls Toolbar -->
-					<div class="host-controls-toolbar" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.35rem; flex-shrink:0;">
+					<div class="host-controls-toolbar" style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:0.35rem; flex-shrink:0;">
 						<button id="btn-undo-ball" class="btn-secondary" style="padding:0.6rem 0.2rem; border-radius:0.75rem; font-size:0.7rem; display:flex; flex-direction:column; align-items:center; gap:0.2rem;" ${currentTurn === 0 ? 'disabled style="opacity:0.4;"' : ''}>
 							<span style="color:#fbbf24;">${renderIcon("undo", 16)}</span>
 							<span>1手戻す</span>
@@ -675,7 +682,9 @@ export function renderHostView(container) {
 							<span>当選照合</span>
 						</button>
 
-
+						<button id="btn-winner-ranking" class="btn-secondary" style="padding:0.6rem 0.2rem; border-radius:0.75rem; font-size:0.7rem; display:flex; flex-direction:column; align-items:center; gap:0.2rem;">
+							${renderIcon("trophy", 16)}<span>当選順</span>
+						</button>
 					</div>
 
 					${
@@ -861,6 +870,10 @@ export function renderHostView(container) {
 				isGameStarted = false;
 				currentTurn = 0;
 				specialRuleTurn = null;
+				registeredSeeds = [];
+				participantNames = {};
+				verifiedChildSeeds = [];
+				childCardsMap.clear();
 				render();
 			}
 		});
@@ -883,6 +896,8 @@ export function renderHostView(container) {
 				showSpecialCutIn();
 			}
 		});
+
+		container.querySelector("#btn-winner-ranking").addEventListener("click", showWinnerRanking);
 
 		// Verification Modal
 		verifyBtn.addEventListener("click", () => {
@@ -912,6 +927,7 @@ export function renderHostView(container) {
 		const scope = screenScope.child();
 		let cameraScope = scope.child();
 		let verificationId = 0;
+		let updated = false;
 		const existing = document.getElementById("host-verify-modal");
 		if (existing) existing.remove();
 
@@ -1040,11 +1056,11 @@ export function renderHostView(container) {
 				const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
 				const code = window.jsQR(img.data, img.width, img.height);
 				if (code && code.data) {
-					const s = parseQrSeed(code.data);
-					if (s !== null) {
+					const identity = parseParticipantQr(code.data);
+					if (identity !== null) {
 						soundManager.playScanBeep();
 						stopCam();
-						doVerify(s);
+						doVerify(identity.seed, identity.displayName);
 						return;
 					}
 				}
@@ -1062,7 +1078,7 @@ export function renderHostView(container) {
 		}
 		scope.add(stopCam);
 
-		async function doVerify(seed) {
+		async function doVerify(seed, displayName = null) {
 			stopCam();
 			const request = ++verificationId;
 			body.innerHTML = `
@@ -1074,6 +1090,13 @@ export function renderHostView(container) {
 
 			const result = await verifyChildCard(seed, drawSequence, currentTurn, specialRuleTurn);
 			if (!scope.active || request !== verificationId) return;
+			if (displayName !== null) participantNames[seed] = displayName;
+			if (result.isValidWin) {
+				childCardsMap.set(seed, result.card);
+				if (!verifiedChildSeeds.includes(seed)) verifiedChildSeeds.push(seed);
+			}
+			saveParent();
+			updated = true;
 
 			if (result.isValidWin) {
 				soundManager.playFanfare();
@@ -1105,6 +1128,7 @@ export function renderHostView(container) {
 						</div>
 					</div>
 
+					<div class="identity-label">${escapeHtml(participantLabel(seed))}</div>
 					<!-- Participant Info -->
 					<div style="display:flex; justify-content:space-between; align-items:center; background:#030712; padding:0.5rem 0.75rem; border-radius:0.75rem; border:1px solid #1e293b; font-size:0.75rem;">
 						<span style="color:#94a3b8;">カードID:</span>
@@ -1160,7 +1184,7 @@ export function renderHostView(container) {
 			});
 		}
 
-		const close = () => scope.dispose();
+		const close = () => { scope.dispose(); if (updated) render(); };
 
 		modal.querySelector("#close-verify-btn").addEventListener("click", close);
 		modal.addEventListener("click", (e) => {
@@ -1288,7 +1312,7 @@ export function renderHostView(container) {
 							(item, idx) => `
 						<div data-award-seed="${item.seed}" style="background:#030712; border:1px solid #1e293b; border-radius:0.75rem; padding:0.6rem 0.75rem; display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; font-weight:800;">
 							<span style="color:#94a3b8;">第 ${idx + 1} 位</span>
-							<span class="font-mono" style="font-size:1.2rem; color:#fbbf24;">${item.seed}</span>
+							<span class="font-mono" style="font-size:1.2rem; color:#fbbf24;">${escapeHtml(participantLabel(item.seed))}</span>
 							<span style="color:#e2e8f0;">${item.count} マス開</span>
 						</div>
 					`
@@ -1306,6 +1330,26 @@ export function renderHostView(container) {
 		modal.querySelector("#close-dobe-btn").addEventListener("click", () => scope.dispose());
 	}
 
+	function showWinnerRanking() {
+		const scope = screenScope.child();
+		const ranking = buildWinnerRanking(childCardsMap, drawSequence, currentTurn, specialRuleTurn);
+		const modal = document.createElement("div");
+		modal.id = "winner-ranking-modal";
+		modal.className = "modal-overlay";
+		modal.innerHTML = `<div class="modal-content">
+			<h2>当選順</h2>
+			<p class="ranking-note">成立手番順・同じ手番は同順位である。${gameMode === "mode_b" ? "モードBでは有効と照合済みのカードのみが対象である。" : "登録カードと有効照合済みのカードが対象である。"}</p>
+			<div class="winner-list">${ranking.length ? ranking.map(item => `<div class="winner-row" data-winner-seed="${item.seed}" data-rank="${item.rank}" data-turn="${item.firstBingoTurn}">
+				<strong>${item.rank}位</strong><span class="identity-label">${escapeHtml(participantLabel(item.seed))}</span><span>第${item.firstBingoTurn}手</span>
+			</div>`).join("") : '<p class="ranking-empty">現在の手番で当選者はいない。</p>'}</div>
+			<button id="close-ranking-btn" class="btn-secondary">閉じる</button>
+		</div>`;
+		document.body.appendChild(modal);
+		scope.add(() => modal.remove());
+		modal.querySelector("#close-ranking-btn").addEventListener("click", () => scope.dispose());
+		modal.addEventListener("click", event => { if (event.target === modal) scope.dispose(); });
+	}
+
 	function saveParent() {
 		saveParentState({
 			parentSeed,
@@ -1313,6 +1357,8 @@ export function renderHostView(container) {
 			currentTurn,
 			specialRuleTurn,
 			registeredChildSeeds: registeredSeeds,
+			participantNames,
+			verifiedChildSeeds,
 		});
 	}
 
