@@ -17,3 +17,11 @@
 ## 句点なしの参加者案内
 
 横断点検で参加者の「タップで穴を開ける / 長押しで元に戻す」が残っていた。静的検出へ追加し、child.js:233を検出するREDを取得した。縦画面の案内と横画面の共通/詳細案内を、実touchで可視範囲へ出して「開けます」「戻せます」とassertする試験を追加した。独立テストレビューは`PASS`である。測定中のソースを変えないため、実行中の測定は変更前に停止した。
+
+## 実行環境・ブラウザ基盤への再入場
+
+全体で88/88のNode側合格後、UIは94/103となった。時間切れを単独合格で打ち消さず調べ、アプリなしの最小HTMLでもCanvas2D.resetTransformの停止を確認した。CPU描画へ固定すると実pixelと無変更の旧QRassertが通過した。GPU/crashpadの残留が親終了後もstderrを保持する二次障害は、所有PID・UNIX socket対で確認した。
+
+基盤を正常なBrowser.close、所有groupの期限付き停止、stderr破棄、CDP pending拒否、接続/DevTools HTTP期限、初期化失敗時のcontext/target解放へ是正した。新規unit/browser-driver4件とintegration/browser-driver1件で、実子が親終了後にstderrを保持するケース・終了無視・接続停止・context再利用・CPU Canvas pixelを検証する。
+
+独立テストレビューから、DevTools HTTP期限漏れ、子の実停止assert不足、起動失敗時のfixtureサーバー/fetch復元漏れを指摘され、実HTTP停止と子PIDの/proc状態観測、入れ子finallyへ是正した。基盤回帰5件＋旧QR2件は7/7、新機能の実Worker/更新UIは15/15である。基盤と回帰の最終独立レビューは`PASS`である。全体の再測定は別途実施する。
