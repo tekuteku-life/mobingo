@@ -77,3 +77,10 @@ test('R-17/18: 名前・照合済みIDの保存検査と旧形式維持',()=>{
 		storage.saveParentState({...parent,...extra});assert.equal(storage.loadParentState(),null,JSON.stringify(extra));
 	}
 });
+
+test('R-17: 方向制御文字を含む保存名は両ゲーム全体を拒否する',()=>{
+	for(const control of ['\u061c','\u200e','\u200f']){
+		storage.saveChildState({...child,displayName:'a'+control});assert.equal(storage.loadChildState(),null);
+		storage.saveParentState({...parent,participantNames:{ABCD:'a'+control}});assert.equal(storage.loadParentState(),null);
+	}
+});
