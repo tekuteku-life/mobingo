@@ -1,5 +1,5 @@
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
-const CACHE_NAME = 'mobingo-v1.1.0';
+const CACHE_NAME = 'mobingo-v1.2.0';
 const STATIC_ASSETS = [
 	'./',
 	'./index.html',
@@ -21,6 +21,8 @@ const STATIC_ASSETS = [
 	'./js/core/identity.js',
 	'./js/core/ranking.js',
 	'./js/core/lifecycle.js',
+	'./js/core/updates.js',
+	'./js/core/version.js',
 	'./js/core/icons.js',
 	'./js/views/mode-select.js',
 	'./js/views/child.js',
@@ -33,8 +35,8 @@ const STATIC_ASSETS = [
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches.open(CACHE_NAME).then((cache) => {
-			return cache.addAll(STATIC_ASSETS);
-		}).then(() => sw.skipWaiting())
+			return cache.addAll(STATIC_ASSETS.map((url) => new Request(url, { cache: "reload" })));
+		})
 	);
 });
 
@@ -52,29 +54,29 @@ sw.addEventListener('activate', (event) => {
 	);
 });
 
+sw.addEventListener('message', (event) => {
+	const version = CACHE_NAME.slice('mobingo-v'.length);
+	if (event.data?.type === 'MOBINGO_GET_VERSION') event.ports[0]?.postMessage({ type: 'MOBINGO_VERSION', version });
+	const source = event.source;
+	if (event.data?.type === 'MOBINGO_SKIP_WAITING' && event.data.version === version
+		&& source && 'url' in source && 'type' in source && source.type === 'window' && source.url.startsWith(sw.registration.scope)) {
+		event.waitUntil(sw.skipWaiting());
+	}
+});
+
 sw.addEventListener('fetch', (event) => {
 	if (event.request.method !== 'GET') return;
-
-	event.respondWith(
-		caches.match(event.request).then((cachedResponse) => {
-			if (cachedResponse) {
-				return cachedResponse;
+	event.respondWith(caches.open(CACHE_NAME).then(async (cache) => {
+		const cached = await cache.match(event.request);
+		if (cached) return cached;
+		try {
+			const response = await fetch(event.request);
+			if (response && response.status === 200 && response.type === 'basic') {
+				event.waitUntil(cache.put(event.request, response.clone()).catch(() => {}));
 			}
-			return fetch(event.request).then((networkResponse) => {
-				if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-					return networkResponse;
-				}
-				const responseToCache = networkResponse.clone();
-				caches.open(CACHE_NAME).then((cache) => {
-					cache.put(event.request, responseToCache);
-				});
-				return networkResponse;
-			}).catch(() => {
-				// Fallback for navigation
-				if (event.request.mode === 'navigate') {
-					return caches.match('./index.html');
-				}
-			});
-		})
-	);
+			return response;
+		} catch {
+			if (event.request.mode === 'navigate') return cache.match('./index.html');
+		}
+	}));
 });

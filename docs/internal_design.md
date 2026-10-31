@@ -57,9 +57,9 @@ pointer操作はpointerIdを保持する。移動境界、pointercancel、lostpo
 
 ## 5. Service Worker（I-13）
 
-installは`STATIC_ASSETS`を`cache.addAll`して完了後にskipWaitingする。activateは同アプリの`mobingo-`接頭辞を持つ旧キャッシュだけを削除してclients.claimする。fetchはGETのみcache-firstで処理し、同一オリジン・200・basic応答を保存する。オフラインのnavigateはキャッシュ済みindexへフォールバックする。
+installは`STATIC_ASSETS`を`cache.addAll`して完了を待つ。起動中アプリからの強制切替はI-17の確認付きメッセージによる。activateは同アプリの`mobingo-`接頭辞を持つ旧キャッシュだけを削除してclients.claimする。fetchはGETのみ自身の版のCacheを検索するcache-firstで処理し、同一オリジン・200・basic応答を保存する。オフラインのnavigateはキャッシュ済みindexへフォールバックする。
 
-バージョン更新時はpackageのルートバージョンと`CACHE_NAME = 'mobingo-vX.Y.Z'`を同期する。独自の更新通知・強制リロード機構は現行に存在しない。配信済み旧SWからの更新は本番環境で別途確認する。
+バージョン更新時はpackage/lockルート、実行版定数と`CACHE_NAME = 'mobingo-vX.Y.Z'`を同期する。更新確認・明示的な切替はI-17へ定義する。配信済み旧SWからの更新は本番環境で別途確認する。
 
 ## 6. 検証境界
 
@@ -84,3 +84,15 @@ PWAマニフェストの`orientation`は`any`とし、インストール時に�
 開催者は登録者と有効照合済みのカードをMapで保持し、復元時もその和集合を生成する。照合のPromiseが完了した後でスコープと要求世代を確認し、名前・有効照合済みID・カードを同じ操作として更新してから保存する。受付確定中は名前更新も停止する。旧形式で同じIDを読む場合は名前を保持する。
 
 保存復元では追加フィールドの型・範囲・IDキー・重複を検査し、既知の値だけを新しいオブジェクトへコピーする。新規フィールドが欠落した旧JSONの返却形は維持する。描画ではtextContentか5文字（&、<、>、二重引用符、単一引用符）のエスケープを用い、属性・本文・トースト・順位でもHTML化しない。
+
+## 9. 更新管理（I-17／R-21）
+
+`js/core/version.js`に実行版定数、`js/core/updates.js`に更新状態・待機処理を集約する。appはload時に登録し、情報モーダルへ同じ更新管理インスタンスを渡す。登録は`updateViaCache:none`、更新確認は`registration.update()`であり、アプリ独自の版JSONや外部サービスを設けない。
+
+更新管理はidle/checking/current/available/applying/error/unsupportedを持つ。登録Promiseを共有し、確認・適用の連打を止める。インストール完了・メッセージ応答・controller切替はリスナーとタイマーをセットで破棄する。版応答は型・上限・正規数値を検査して数値比較し、DOMにはテキストとして渡す。閉じたモーダルは購読を解除する。
+
+SWはインストール時のskipWaitingを廃止し、初回は通常のライフサイクルで有効化する。アプリ範囲のwindow clientから対象版が一致する適用メッセージを受けた場合だけskipWaitingする。GET_VERSIONは送信元のMessagePortへ自身のキャッシュ版を返す。precacheは`cache:reload`でブラウザの古いHTTP応答を避け、実行時の検索・navigation fallbackは自身の版のCacheに限定する。activationは旧Mobingo Cacheだけを削除してclaimする。新しい資産の取得失敗では旧版を有効なまま保つ。
+
+packageとlockルート、版定数、SWキャッシュを1.2.0へ同期する。`scripts/check_version.js`を静的検査へ加え、不一致を検出する。開催者の樽に抽選中属性を設け、更新適用前の受付/抽選ガードに使う。カード生成v1・保存形式は変更しない。
+
+根拠は[Service Worker updateの仕様](https://w3c.github.io/ServiceWorker/#service-worker-registration-update)、[skipWaitingの仕様](https://w3c.github.io/ServiceWorker/#service-worker-global-scope-skipwaiting)である。実装可能性はローカルChromiumの実Worker更新試験で確認する。

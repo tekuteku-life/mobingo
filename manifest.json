@@ -1,7 +1,7 @@
 {
 	"name": "Mobingo - どこでも簡単デジタルビンゴ",
 	"short_name": "Mobingo",
-	"description": "電波なし・オフラインで動作する完全同期型デジタルビンゴ",
+	"description": "初回取得後はオフラインで遊べるデジタルビンゴです。",
 	"start_url": "./",
 	"display": "standalone",
 	"orientation": "any",

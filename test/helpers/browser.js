@@ -7,12 +7,32 @@ import assert from 'node:assert/strict';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-class CDP {
+async function within(promise, ms) {
+	let timer;
+	try { return await Promise.race([promise, new Promise(resolve=>{timer=setTimeout(resolve,ms)})]); }
+	finally { clearTimeout(timer); }
+}
+
+export async function stopBrowserProcess(child, client = null, graceMs = 1500) {
+	let exited;
+	const stopped=new Promise(resolve=>{exited=resolve;if(child.exitCode!==null||child.signalCode!==null)resolve();else child.once('exit',resolve)});
+	try {
+		if(client && child.exitCode===null && child.signalCode===null)await within(client.send('Browser.close').catch(()=>{}),graceMs);
+		client?.close();
+		if(child.exitCode===null && child.signalCode===null)child.kill('SIGTERM');
+		await within(stopped,graceMs);
+		if(child.pid){try{process.kill(-child.pid,'SIGKILL')}catch(error){if(error.code!=='ESRCH')throw error}}
+		await within(stopped,graceMs);
+	} finally {child.removeListener('exit',exited);child.stderr?.destroy();}
+}
+
+export class CDP {
 	constructor(socket) {
 		this.socket = socket;
 		this.nextId = 0;
 		this.pending = new Map();
 		this.listeners = new Map();
+		socket.addEventListener('close',()=>this.rejectPending());
 		socket.addEventListener('message', ({ data }) => {
 			const message = JSON.parse(data);
 			if (message.id) {
@@ -25,18 +45,25 @@ class CDP {
 			}
 		});
 	}
-	static async connect(url) {
+	static async connect(url, timeoutMs = 10000) {
 		const socket = new WebSocket(url);
-		await new Promise((resolve, reject) => {
-			socket.addEventListener('open', resolve, { once: true });
-			socket.addEventListener('error', reject, { once: true });
-		});
+		let timer, opened, failed;
+		try {
+			await new Promise((resolve,reject)=>{
+				opened=resolve;failed=reject;
+				socket.addEventListener('open',opened,{once:true});
+				socket.addEventListener('error',failed,{once:true});
+				timer=setTimeout(()=>reject(new Error('CDP connection timeout')),timeoutMs);
+			});
+		} catch(error) {socket.close();throw error;}
+		finally {clearTimeout(timer);socket.removeEventListener('open',opened);socket.removeEventListener('error',failed);}
 		return new CDP(socket);
 	}
-	send(method, params = {}) {
+	send(method, params = {}, timeoutMs = 15000) {
+		if(this.socket.readyState!==WebSocket.OPEN)return Promise.reject(new Error("CDP connection closed"));
 		return new Promise((resolve, reject) => {
 			const id = ++this.nextId;
-			const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 15000);
+			const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`CDP timeout: ${method}${params.expression ? " expression=" + params.expression.slice(0,220) : ""}`)); }, timeoutMs);
 			this.pending.set(id, { resolve: (result) => { clearTimeout(timer); resolve(result); },
 				reject: (error) => { clearTimeout(timer); reject(error); } });
 			this.socket.send(JSON.stringify({ id, method, params }));
@@ -46,14 +73,17 @@ class CDP {
 		if (!this.listeners.has(name)) this.listeners.set(name, []);
 		this.listeners.get(name).push(listener);
 	}
-	close() { this.socket.close(); }
+	rejectPending(){for(const request of this.pending.values())request.reject(new Error('CDP connection closed'));this.pending.clear();}
+	close() { this.rejectPending(); this.socket.close(); }
 }
 
-export async function startBrowser() {
+export async function startBrowser({ route = async () => null } = {}) {
 	const root = process.cwd();
 	const server = createServer(async (req, res) => {
 		try {
 			const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+			const custom = await route(pathname);
+			if (custom) { res.writeHead(custom.status ?? 200, { 'Content-Type': custom.type ?? 'text/javascript', 'Cache-Control': 'no-store' }); res.end(custom.body ?? ''); return; }
 			const path = resolve(root, `.${pathname.endsWith('/') ? `${pathname}index.html` : pathname}`);
 			if (relative(root, path).startsWith('..')) { res.writeHead(403).end(); return; }
 			const contents = await readFile(path);
@@ -66,9 +96,11 @@ export async function startBrowser() {
 	const profile = await mkdtemp(`${tmpdir()}/mobingo-chrome-`);
 	const child = spawn(process.env.CHROME_BIN || '/usr/bin/chromium', [
 		'--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu',
+		'--disable-gpu-compositing', '--disable-software-rasterizer', '--use-gl=disabled',
 		'--disable-background-timer-throttling', '--disable-renderer-backgrounding',
 		'--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', 'about:blank',
-	], { stdio: ['ignore', 'ignore', 'pipe'] });
+	], { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
+	let browserLog='';child.stderr.on('data',data=>{browserLog=(browserLog+data).slice(-6000)});
 	try {
 		let endpoint;
 		const ready = new Promise((resolve, reject) => {
@@ -87,17 +119,24 @@ export async function startBrowser() {
 		const browser = await CDP.connect(endpoint);
 		return {
 			origin,
-			async page({ width = 390, height = 844, mobile = false, setup = '' } = {}) {
-				const { browserContextId } = await browser.send('Target.createBrowserContext');
-				const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId });
+			async contextCount(){return (await browser.send('Target.getBrowserContexts')).browserContextIds.length;},
+			async page({ width = 390, height = 844, mobile = false, setup = '', contextId, readyTimeout = 5000, connectionTimeout = 10000 } = {}) {
+				const browserContextId = contextId || (await browser.send('Target.createBrowserContext')).browserContextId;
+				let targetId,cdp;
+				try {
+				({ targetId } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId }));
 				await browser.send('Target.activateTarget', { targetId });
-				const targets = await (await fetch(`${endpoint.replace(/^ws:/, 'http:').split('/devtools/')[0]}/json/list`)).json();
-				const cdp = await CDP.connect(targets.find((entry) => entry.id === targetId).webSocketDebuggerUrl);
-				const errors = [];
+				const targets = await (await fetch(`${endpoint.replace(/^ws:/, 'http:').split('/devtools/')[0]}/json/list`,{signal:AbortSignal.timeout(connectionTimeout)})).json();
+				cdp = await CDP.connect(targets.find((entry) => entry.id === targetId).webSocketDebuggerUrl,connectionTimeout);
+				const errors = [], diagnostics = [];
+				cdp.on('Network.responseReceived',({response})=>diagnostics.push(JSON.stringify({url:response.url,status:response.status,mime:response.mimeType})));
+				cdp.on('Network.loadingFailed',event=>diagnostics.push(JSON.stringify(event)));
+				cdp.on('Log.entryAdded',({entry})=>diagnostics.push(entry.text));
 				cdp.on('Runtime.exceptionThrown', ({ exceptionDetails }) => errors.push(exceptionDetails.exception?.description || exceptionDetails.text));
 				let acceptDialog = true;
-				cdp.on('Page.javascriptDialogOpening', () => cdp.send('Page.handleJavaScriptDialog', { accept: acceptDialog }));
+				cdp.on('Page.javascriptDialogOpening', () => cdp.send('Page.handleJavaScriptDialog', { accept: acceptDialog }).catch(()=>{}));
 				await cdp.send('Runtime.enable');
+				await cdp.send('Log.enable');
 				await cdp.send('Page.enable');
 				await cdp.send('Network.enable');
 				const setViewport = async (width, height) => {
@@ -111,10 +150,10 @@ export async function startBrowser() {
 					await cdp.send('Profiler.startPreciseCoverage', { callCount: true, detailed: true });
 				}
 				const page = {
-					cdp, errors,
+					cdp, errors, contextId: browserContextId,
 					dialog(accept) { acceptDialog = accept; },
 					async eval(expression) {
-						const result = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+						let result;try{result=await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });}catch(error){throw new Error(`${error.message} stderr=${browserLog}`)}
 						if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
 						return result.result.value;
 					},
@@ -195,27 +234,26 @@ export async function startBrowser() {
 						await cdp.send('Input.dispatchMouseEvent', { type:'mouseReleased', x:r.x+r.distance*ratio, y:r.y, button:'left', clickCount:1 });
 					},
 					async close() {
-						await page.collect();
-						cdp.close();
-						await browser.send('Target.disposeBrowserContext', { browserContextId });
+						try {await page.collect();}
+						finally {cdp.close();if(contextId)await browser.send('Target.closeTarget',{targetId});else await browser.send('Target.disposeBrowserContext',{browserContextId});}
 					},
 				};
-				await cdp.send('Page.navigate', { url: origin });
-				await page.wait('document.readyState === "complete" && !!document.querySelector("#app-main")');
+				const navigation=await cdp.send('Page.navigate', { url: origin });
+				if(navigation.errorText)throw new Error(`Navigation failed: ${navigation.errorText} ${origin} events=${diagnostics.join(" | ")} stderr=${browserLog}`);
+				try {await page.wait('document.readyState === "complete" && !!document.querySelector("#app-main")',readyTimeout);}
+				catch(error){const state=await page.eval(`JSON.stringify({url:location.href,ready:document.readyState,body:document.body?.innerText.slice(0,300),html:document.documentElement.outerHTML.slice(0,500)})`);throw new Error(`${error.message} state=${state} runtime=${errors.join(' | ')} log=${diagnostics.join(' | ')}`)}
 				return page;
+				}catch(error){cdp?.close();await within(browser.send(contextId?'Target.closeTarget':'Target.disposeBrowserContext',contextId?{targetId}:{browserContextId}).catch(()=>{}),1500);throw error;}
 			},
 			async close() {
-				browser.close();
-				const stopped = new Promise((resolve) => child.once('exit', resolve));
-				child.kill();
-				await stopped;
+				await stopBrowserProcess(child,browser);
 				server.closeAllConnections();
 				await new Promise((resolve) => server.close(resolve));
 				await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 			},
 		};
 	} catch (error) {
-		child.kill(); server.close();
+		await stopBrowserProcess(child); server.closeAllConnections(); server.close();
 		await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 		throw error;
 	}
