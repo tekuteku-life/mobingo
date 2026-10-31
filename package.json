@@ -1,7 +1,7 @@
 {
 	"name": "mobingo",
 	"private": true,
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
@@ -10,14 +10,15 @@
 		"check:syntax": "node scripts/check_syntax.js",
 		"check:types": "tsc -p jsconfig.json && tsc -p jsconfig.sw.json",
 		"lint:indent": "node scripts/check_indent.js",
-		"lint": "npm run lint:indent && npm run check:syntax && npm run check:types",
+		"lint": "npm run lint:indent && npm run check:syntax && npm run check:version && npm run check:types",
 		"test": "node --test --test-concurrency=1 test/unit/*.test.js test/integration/*.test.js test/system/*.test.js",
 		"test:unit": "node --test test/unit/*.test.js",
 		"test:integration": "node --test --test-concurrency=1 test/integration/*.test.js",
 		"test:system": "node --test --test-concurrency=1 test/system/*.test.js",
 		"test:ui": "node --test --test-concurrency=1 test/ui/*.test.js",
 		"test:all": "npm test && npm run test:ui",
-		"test:coverage": "node scripts/coverage.js"
+		"test:coverage": "node scripts/coverage.js",
+		"check:version": "node scripts/check_version.js"
 	},
 	"dependencies": {
 		"canvas-confetti": "^1.9.4",

@@ -2,6 +2,7 @@
  * Mobingo App Main Entrypoint (Pure JS / ES Modules, No Build Step)
  */
 
+import { createUpdateManager } from "./core/updates.js";
 import { renderIcon } from "./core/icons.js";
 import { soundManager } from "./core/audio.js";
 import { wakeLockManager } from "./core/wakelock.js";
@@ -11,19 +12,14 @@ import { renderModeSelect } from "./views/mode-select.js";
 import { renderChildView } from "./views/child.js";
 import { renderHostView } from "./views/host.js";
 
-// Register Service Worker for PWA / offline support
-if ("serviceWorker" in navigator) {
-	window.addEventListener("load", () => {
-		navigator.serviceWorker
-			.register("./sw.js")
-			.then((reg) => {
-				console.log("Mobingo Service Worker active:", reg.scope);
-			})
-			.catch((err) => {
-				console.warn("Service Worker registration failed:", err);
-			});
-	});
-}
+const updateManager = createUpdateManager({
+	canApply: () => {
+		if (document.querySelector(".scanner-screen")) return "受付を終えてから更新してください。";
+		if (document.querySelector('[data-update-busy="true"]')) return "抽選が終わってから更新してください。";
+		return null;
+	},
+});
+window.addEventListener("load", () => { updateManager.start(); });
 
 class MobingoApp {
 	constructor() {
@@ -84,7 +80,7 @@ class MobingoApp {
 							: ""
 					}
 
-					<button id="header-license-btn" class="header-btn" title="ライセンス＆情報">
+					<button id="header-license-btn" class="header-btn" title="アプリ情報・更新・ライセンス">
 						${renderIcon("shield", 18)}
 					</button>
 					${this.currentMode === "host" ? `<button id="btn-projector" class="header-btn projector-toggle" title="外部投影" disabled>${renderIcon("tv", 18)}<span>外部投影</span></button>` : ""}
@@ -129,7 +125,7 @@ class MobingoApp {
 
 		if (licenseBtn) {
 			licenseBtn.addEventListener("click", () => {
-				showLicenseModal();
+				showLicenseModal(updateManager);
 			});
 		}
 	}

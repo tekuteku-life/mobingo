@@ -229,8 +229,8 @@ export function renderChildView(container) {
 			? `<div style="width:100%; background:rgba(16,185,129,0.2); border:1px solid rgba(16,185,129,0.4); border-radius:0.75rem; padding:0.35rem; text-align:center; font-size:0.75rem; color:#6ee7b7; font-weight:800;">
 					🎉 ビンゴ達成！司会者に申告してください
 				</div>`
-			: `<div style="font-size:0.7rem; color:#64748b; text-align:center;">
-					タップで穴を開ける / 長押しで元に戻す
+			: `<div class="child-operation-help" style="font-size:0.7rem; color:#64748b; text-align:center;">
+					タップで穴を開けます / 長押しで元に戻せます
 				</div>`;
 
 		container.innerHTML = `
@@ -376,8 +376,8 @@ export function renderChildView(container) {
 							${assistBarContent}
 						</div>
 
-						<div style="font-size:0.7rem; color:#64748b; line-height:1.4; padding:0 0.2rem;">
-							💡 タップで穴あけ / 長押し(0.6秒)で元に戻せます
+						<div class="child-operation-detail" style="font-size:0.7rem; color:#64748b; line-height:1.4; padding:0 0.2rem;">
+							💡 タップで穴を開けます / 長押し（0.6秒）で元に戻せます
 						</div>
 					</div>
 

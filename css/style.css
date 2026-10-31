@@ -782,3 +782,11 @@ html, body {
 	.child-seed-field { padding: 0.65rem !important; }
 	#btn-start-card { padding: 0.65rem !important; }
 }
+
+.app-update-panel { padding: 0.75rem; border: 1px solid #475569; border-radius: 0.75rem; background: #030712; overflow-wrap: anywhere; }
+.app-update-panel h2 { font-size: 0.95rem; color: #fff; margin-bottom: 0.4rem; }
+#update-status { margin: 0.6rem 0; }
+.update-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.update-actions button { padding: 0.65rem; min-height: 44px; border-radius: 0.6rem; font-size: 0.8rem; }
+.update-actions [hidden] { display: none; }
+.update-help { margin-top: 0.6rem; color: #94a3b8; font-size: 0.7rem; }

@@ -114,7 +114,7 @@ export function renderHostView(container) {
 							</span>
 						</div>
 						<p style="font-size:0.75rem; color:#94a3b8; line-height:1.5;">
-							事前受付不要で今すぐ開始。参加者が「ビンゴ！」と名乗り出た際に、開催者カメラでQRを照合して当選判定を行います。
+							事前受付なしで開始できます。参加者が「ビンゴ！」と名乗り出た際に、開催者カメラでQRを照合して当選判定を行います。
 						</p>
 					</div>
 
@@ -133,7 +133,7 @@ export function renderHostView(container) {
 							</span>
 						</div>
 						<p style="font-size:0.75rem; color:#94a3b8; line-height:1.5;">
-							全員のカードQRを連続スキャン。ボール排出ごとに全員のリーチ・ビンゴを自動検知＆激アツ数字予告が作動します。
+							全員のカードQRを連続して読み取ります。ボール排出ごとに全員のリーチ・ビンゴを自動検知＆激アツ数字予告が作動します。
 						</p>
 					</div>
 				</div>
@@ -781,6 +781,7 @@ export function renderHostView(container) {
 			if (ejectTimer) clearTimeout(ejectTimer);
 			ejectTimer = null;
 			isShowingEjected = false;
+			wheelArena.dataset.updateBusy = "false";
 			currentTurn++;
 			saveParent();
 			render();
@@ -830,6 +831,7 @@ export function renderHostView(container) {
 			onSuccess: () => {
 				if (currentTurn >= 75 || isSpinning || isShowingEjected) return;
 				isSpinning = true;
+				wheelArena.dataset.updateBusy = "true";
 				soundManager.unlock();
 				soundManager.playRoll(1800);
 				barrel.startSpin();
@@ -1338,10 +1340,10 @@ export function renderHostView(container) {
 		modal.className = "modal-overlay";
 		modal.innerHTML = `<div class="modal-content">
 			<h2>当選順</h2>
-			<p class="ranking-note">成立手番順・同じ手番は同順位である。${gameMode === "mode_b" ? "モードBでは有効と照合済みのカードのみが対象である。" : "登録カードと有効照合済みのカードが対象である。"}</p>
+			<p class="ranking-note">成立手番順で表示します。同じ手番は同順位です。${gameMode === "mode_b" ? "モードBでは有効と照合済みのカードのみが対象です。" : "登録カードと有効照合済みのカードが対象です。"}</p>
 			<div class="winner-list">${ranking.length ? ranking.map(item => `<div class="winner-row" data-winner-seed="${item.seed}" data-rank="${item.rank}" data-turn="${item.firstBingoTurn}">
 				<strong>${item.rank}位</strong><span class="identity-label">${escapeHtml(participantLabel(item.seed))}</span><span>第${item.firstBingoTurn}手</span>
-			</div>`).join("") : '<p class="ranking-empty">現在の手番で当選者はいない。</p>'}</div>
+			</div>`).join("") : '<p class="ranking-empty">現在の手番では、当選者はいません。</p>'}</div>
 			<button id="close-ranking-btn" class="btn-secondary">閉じる</button>
 		</div>`;
 		document.body.appendChild(modal);
