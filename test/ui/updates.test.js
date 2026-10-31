@@ -25,7 +25,7 @@ test('R-21: 非対応・登録拒否でも現在版と情報を表示する',asy
 test('R-21: 閉じた情報画面は確認の遅延完了で書き換えず、再表示へ反映する',async()=>{
 	const page=await browser.page();
 	try{
-		await page.wait('!!navigator.serviceWorker.controller',10000);await page.eval(`window.releaseUpdate=null;const get=navigator.serviceWorker.getRegistration.bind(navigator.serviceWorker);window.reg=await get();window.reg.update=()=>new Promise(resolve=>window.releaseUpdate=resolve);navigator.serviceWorker.register=async()=>window.reg`);
+		await page.wait('!!navigator.serviceWorker.controller',10000);await page.eval(`(async()=>{window.releaseUpdate=null;const get=navigator.serviceWorker.getRegistration.bind(navigator.serviceWorker);window.reg=await get();window.reg.update=()=>new Promise(resolve=>window.releaseUpdate=resolve);navigator.serviceWorker.register=async()=>window.reg})()`);
 		await page.click('#header-license-btn');await page.click('#btn-check-update');await page.wait('!!window.releaseUpdate');await page.eval('window.oldStatus=document.querySelector("#update-status");window.oldText=oldStatus.textContent');await page.click('#close-license-btn');await page.eval('window.releaseUpdate()');await delay(100);assert.ok(await page.eval('oldStatus.textContent===oldText'));await page.click('#header-license-btn');await page.wait(`document.querySelector('#update-status').dataset.phase==='current'`);assert.deepEqual(page.errors,[]);
 	}finally{await page.close();}
 });
@@ -39,4 +39,16 @@ test('R-21: 受付中・抽選中の適用を拒否し、ゲーム保存値を�
 			const completed=await page.eval('localStorage.mobingo_parent_state');await page.click('#header-license-btn');await page.click('#btn-apply-update');await page.wait('!window.documentToken && !!document.querySelector("#slide-track")',10000);assert.equal(await page.eval('localStorage.mobingo_parent_state'),completed);assert.deepEqual(page.errors,[]);
 		}finally{await page.close();await real.close();}
 	}
+});
+
+test('R-21: 適用待ちで画面を閉じて抽選を開始しても再読み込みせず、完了後に適用できる',async()=>{
+	const state={parentSeed:'1234',mode:'mode_b',currentTurn:0,specialRuleTurn:null,registeredChildSeeds:[]};
+	const {browser:real,release}=await updateBrowser(),page=await real.page({setup:`localStorage.setItem('mobingo_app_mode','host');if(!localStorage.mobingo_parent_state)localStorage.setItem('mobingo_parent_state',${JSON.stringify(JSON.stringify(state))})`});
+	try{
+		await page.wait('!!navigator.serviceWorker.controller',10000);await page.wait('!!document.querySelector("#slide-track")');
+		await page.eval(`const timer=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>timer(fn,[1800,5000].includes(ms)?60000:ms,...args);window.releaseVersion=null;window.versionRequests=0;const send=ServiceWorker.prototype.postMessage;ServiceWorker.prototype.postMessage=function(data,ports){if(data.type==='MOBINGO_GET_VERSION'&&document.querySelector('#update-status')?.dataset.phase==='applying'&&++window.versionRequests===2){window.releaseVersion=()=>send.call(this,data,ports)}else send.call(this,data,ports)}`);
+		await page.click('#header-license-btn');release.next=true;await page.click('#btn-check-update');await page.wait(`document.querySelector('#update-status').dataset.phase==='available'`,15000);const token=await page.eval('window.documentToken=crypto.randomUUID()');await page.click('#btn-apply-update');await page.wait('!!window.releaseVersion');await page.click('#close-license-btn');await page.drag();await page.click('#header-license-btn');await page.eval('window.releaseVersion()');
+		await page.wait(`!window.documentToken || document.querySelector('#update-status')?.dataset.phase==='available'`);assert.equal(await page.eval('window.documentToken'),token);assert.match(await page.eval('document.querySelector("#update-status").textContent'),/抽選/);assert.equal(await page.eval('JSON.parse(localStorage.mobingo_parent_state).currentTurn'),0);
+		await page.click('#close-license-btn');await page.click('#wheel-arena');await page.click('#wheel-arena');await page.wait('JSON.parse(localStorage.mobingo_parent_state).currentTurn===1');await page.click('#header-license-btn');await page.click('#btn-apply-update');await page.wait('!window.documentToken && !!document.querySelector("#slide-track")',10000);assert.equal(await page.eval('JSON.parse(localStorage.mobingo_parent_state).currentTurn'),1);assert.deepEqual(page.errors,[]);
+	}finally{await page.close();await real.close();}
 });

@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {productionFiles} from '../../scripts/files.js';
 test('R-20: アプリの案内に常体の文末を残さない',async()=>{
 	const findings=[];
-	for(const file of await productionFiles()){
+	for(const file of [...await productionFiles(),'index.html','manifest.json']){
 		const lines=(await readFile(file,'utf8')).split('\n');
 		for(const [i,line] of lines.entries()){
 			if(/^\s*(?:\/\/|\*)/.test(line))continue;

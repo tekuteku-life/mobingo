@@ -81,3 +81,13 @@ test('R-21: 全終了経路でMessagePort・期限タイマー・状態リスナ
 		}
 	}finally{globalThis.MessageChannel=NativeChannel;globalThis.setTimeout=nativeSet;globalThis.clearTimeout=nativeClear;for(const timer of timers)nativeClear(timer);}
 });
+
+test('R-21: 切替待ち・版返信待ちで操作を始めてもreloadせず、完了後に再試行できる',async()=>{
+	for(const stage of ['controller','reply']){
+		let blocked=false,armed=true;const f=fixture({canApply:()=>blocked?'抽選を終えてください。':null}),next=f.available(),send=next.postMessage.bind(next),activate=next.onApply;
+		if(stage==='controller')next.onApply=()=>{if(armed){blocked=true;armed=false}activate()};
+		else next.postMessage=(data,ports)=>{if(data.type==='MOBINGO_GET_VERSION'&&next.state==='activated'&&armed){blocked=true;armed=false}send(data,ports)};
+		await f.manager.check();await f.manager.apply();assert.equal(f.counts().reloads,0,stage);assert.equal(f.manager.state.phase,'available');assert.match(f.manager.state.message,/抽選/);
+		blocked=false;await f.manager.apply();assert.equal(f.counts().reloads,1);
+	}
+});
