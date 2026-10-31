@@ -58,3 +58,8 @@ test('R-13: GET以外・cache hit・ネットワーク応答・オフラインna
 		assert.equal(await pending, mode === 'navigate' ? 'INDEX' : undefined);
 	}
 });
+
+test('R-14: インストール済みPWAも画面の向きを固定しない',async()=>{
+	const manifest=JSON.parse(await readFile('manifest.json','utf8'));
+	assert.equal(manifest.orientation,'any');
+});

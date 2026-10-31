@@ -68,7 +68,7 @@ async function projectorLayout(page,width,height){
 		tops.push(Math.round(r.top));
 	}
 	assert.equal(new Set(tops).size,5,'Mobile projection must use five rows of fifteen numbers');
-	if(width<height){const board=await visible(page,'.projector-board');assert.ok(board.width>board.height,'Portrait number board must be compact and wide');}
+	if(width<height){const board=await visible(page,'.projector-board');assert.ok(board.width>board.height,'Portrait number board must be compact and wide');const hero=await visible(page,'.projector-hero');assert.ok(hero.height<=height*0.45,'Portrait hero must not stretch vertically');}
 	await tap(page,'#close-proj-btn');assert.equal(await page.eval('!!document.querySelector("#projector-view")'),false);
 	for(let repeat=0;repeat<2;repeat++){await tap(page,'#btn-projector');await visible(page,'#proj-barrel-canvas');assert.equal(await page.eval('layoutObservers.size'),observers+1);await tap(page,'#close-proj-btn');assert.equal(await page.eval('layoutObservers.size'),observers);assert.equal(await page.eval('[...layoutObservers].some(e=>!e.isConnected)'),false);assert.ok(await page.eval('layoutFrames.size')<=frames);}
 }

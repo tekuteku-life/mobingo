@@ -136,10 +136,10 @@ export async function startBrowser() {
 						await cdp.send('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[{x:target.x,y:target.y,id:1}] });
 						await cdp.send('Input.dispatchTouchEvent', { type:'touchEnd', touchPoints:[] });
 					},
-					async swipe(selector, toward = 'end') {
-						const r = await page.eval(`(() => {const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();const top=Math.max(0,r.top),bottom=Math.min(visualViewport.height,r.bottom);return {x:Math.min(innerWidth-16,r.right-24),top,height:bottom-top};})()`);
+					async swipe(selector, toward = 'end', requestedDistance = 220) {
+						const r = await page.eval(`(() => {const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();const top=Math.max(0,r.top),bottom=Math.min(visualViewport.height,r.bottom);return {x:Math.min(innerWidth-8,r.right-8),top,height:bottom-top};})()`);
 						assert.ok(r.height > 40, `Scrollable area must be visible: ${selector}`);
-						const distance = Math.min(220, r.height * 0.55);
+						const distance = Math.min(requestedDistance, 220, r.height * 0.55);
 						const startY=r.top+r.height*(toward==='end'?0.8:0.2);
 						await cdp.send('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[{x:r.x,y:startY,id:1}] });
 						for(let step=1;step<=8;step++){

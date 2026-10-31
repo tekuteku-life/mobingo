@@ -30,7 +30,9 @@ export async function reveal(page, selector, scroller) {
 		const r=await geometry(page,selector);
 		if(r?.visible&&r.hit)return r;
 		assert.ok(r,`Missing element: ${selector}`);
-		await page.swipe(scroller,r.top<r.clip.top?'start':'end');
+		const toward=r.top<r.clip.top?'start':'end';
+		const overflow=toward==='start'?r.clip.top-r.top:r.bottom-r.clip.bottom;
+		await page.swipe(scroller,toward,Math.max(32,overflow+24));
 	}
 	return visible(page,selector,true);
 }
