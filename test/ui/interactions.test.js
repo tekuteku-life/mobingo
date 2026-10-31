@@ -69,7 +69,7 @@ for (const [width, height] of [[390,844], [844,390]]) {
 			await page.click(`${prefix} .btn-action-show-qr`);
 			assert.equal(await page.eval('document.querySelector("#qr-canvas").width'), 200);
 			const decoded = await page.eval('(() => { const c=document.querySelector("#qr-canvas"), d=c.getContext("2d").getImageData(0,0,c.width,c.height); return jsQR(d.data,d.width,d.height).data; })()');
-			assert.equal(decoded, 'mobingo:child:ABCD');
+			assert.equal(decoded, 'mobingo:child:v2:'+JSON.stringify({seed:'ABCD',displayName:''}));
 			await page.click('#close-qr-bottom-btn'); await page.click('#header-license-btn');
 			assert.match(await page.eval('document.querySelector("#license-modal").textContent'), /デンソーウェーブ/);
 			await page.click('#close-license-btn'); assert.equal(await page.eval('!!document.querySelector("#license-modal")'), false);

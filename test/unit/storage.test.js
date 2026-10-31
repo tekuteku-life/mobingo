@@ -65,3 +65,22 @@ test('R-12: 保存・読込・削除例外を隔離する', () => {
 	for (const action of [() => storage.saveAppMode('host'), () => storage.saveParentState(parent),
 		() => storage.saveChildState(child), storage.clearParentState, storage.clearChildState]) assert.doesNotThrow(action);
 });
+
+
+test('R-17/18: 名前・照合済みIDの保存検査と旧形式維持',()=>{
+	storage.saveChildState({...child,displayName:' e\u0301 '});
+	assert.deepEqual(storage.loadChildState(),{...child,displayName:'é'});
+	storage.saveParentState({...parent,participantNames:{ABCD:' 花子 '},verifiedChildSeeds:['ZZZZ']});
+	assert.deepEqual(storage.loadParentState(),{...parent,participantNames:{ABCD:'花子'},verifiedChildSeeds:['ZZZZ']});
+	for(const displayName of [null,32,'a'.repeat(33),'a\nb']){storage.saveChildState({...child,displayName});assert.equal(storage.loadChildState(),null);}
+	for(const extra of [{participantNames:null},{participantNames:[]},{participantNames:{bad:'x'}},{participantNames:{ABCD:32}},{participantNames:{ABCD:'a\nb'}},{participantNames:JSON.parse('{"__proto__":"x"}')},{verifiedChildSeeds:['ABCD','ABCD']},{verifiedChildSeeds:['bad']},{verifiedChildSeeds:null}]){
+		storage.saveParentState({...parent,...extra});assert.equal(storage.loadParentState(),null,JSON.stringify(extra));
+	}
+});
+
+test('R-17: 方向制御文字を含む保存名は両ゲーム全体を拒否する',()=>{
+	for(const control of ['\u061c','\u200e','\u200f']){
+		storage.saveChildState({...child,displayName:'a'+control});assert.equal(storage.loadChildState(),null);
+		storage.saveParentState({...parent,participantNames:{ABCD:'a'+control}});assert.equal(storage.loadParentState(),null);
+	}
+});

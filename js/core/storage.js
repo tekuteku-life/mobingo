@@ -1,3 +1,4 @@
+import { normalizeDisplayName } from "./identity.js";
 import { isValidSeed } from "./base32.js";
 
 /**
@@ -73,7 +74,8 @@ function validateChildState(value) {
 	if (!value || !isValidSeed(value.childSeed)
 		|| !uniqueArray(value.openedCellCoords, (coord) => typeof coord === "string" && /^[0-4],[0-4]$/.test(coord))
 		|| typeof value.specialRuleActive !== "boolean") return null;
-	return { childSeed: value.childSeed, openedCellCoords: [...value.openedCellCoords], specialRuleActive: value.specialRuleActive };
+	if (Object.hasOwn(value, "displayName") && normalizeDisplayName(value.displayName) === null) return null;
+	return { ...(Object.hasOwn(value, "displayName") ? { displayName: normalizeDisplayName(value.displayName) } : {}), childSeed: value.childSeed, openedCellCoords: [...value.openedCellCoords], specialRuleActive: value.specialRuleActive };
 }
 
 function validateParentState(value) {
@@ -82,6 +84,17 @@ function validateParentState(value) {
 		|| !Number.isInteger(value.currentTurn) || value.currentTurn < 0 || value.currentTurn > 75
 		|| !(value.specialRuleTurn === null || (Number.isInteger(value.specialRuleTurn) && value.specialRuleTurn >= 0 && value.specialRuleTurn <= 75))
 		|| !uniqueArray(value.registeredChildSeeds, isValidSeed)) return null;
-	return { parentSeed: value.parentSeed, mode: value.mode, currentTurn: value.currentTurn,
+	const names = {};
+	if (Object.hasOwn(value, "participantNames")) {
+		if (!value.participantNames || typeof value.participantNames !== "object" || Array.isArray(value.participantNames)) return null;
+		for (const [seed, rawName] of Object.entries(value.participantNames)) {
+			const name = normalizeDisplayName(rawName);
+			if (!isValidSeed(seed) || name === null) return null;
+			names[seed] = name;
+		}
+	}
+	if (Object.hasOwn(value, "verifiedChildSeeds") && !uniqueArray(value.verifiedChildSeeds, isValidSeed)) return null;
+	return { ...(Object.hasOwn(value, "participantNames") ? { participantNames: names } : {}),
+		...(Object.hasOwn(value, "verifiedChildSeeds") ? { verifiedChildSeeds: [...value.verifiedChildSeeds] } : {}), parentSeed: value.parentSeed, mode: value.mode, currentTurn: value.currentTurn,
 		specialRuleTurn: value.specialRuleTurn, registeredChildSeeds: [...value.registeredChildSeeds] };
 }
