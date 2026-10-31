@@ -112,3 +112,27 @@ test('R-17/18: 未達成の名前だけ取得・登録と有効照合の和集�
 		}finally{await page.close();}
 	}
 });
+
+for(const [width,height] of [[320,568],[844,390],[640,280],[820,1180]])test(`R-17/19: ${width}x${height}の名前編集・順位・開催者準備/受付へ実touch到達`,async()=>{
+	const name='😀'.repeat(32),page=await browser.page({width,height,mobile:true,setup:once(setup('child',{...child,displayName:name}))});
+	try{
+		await page.wait('!!document.querySelector("#bingo-cells-grid")');
+		const panel=width>height?'.child-landscape-panel':'.child-portrait-name';
+		await tap(page,`${panel} .btn-edit-name`,panel);await tap(page,'#edit-name-input','#child-name-modal .modal-content');assert.equal(await page.eval('document.querySelector("#edit-name-input").value'),name);await tap(page,'#cancel-name-btn','#child-name-modal .modal-content');
+		await page.eval(setup('host',{...parent,participantNames:{ABCD:name,ZZZZ:name}}));await page.reload();await page.wait('!!document.querySelector("#slide-track")');await tap(page,'#btn-winner-ranking','.host-dashboard-left');
+		for(const seed of ['ABCD','ZZZZ']){await tap(page,`[data-winner-seed="${seed}"]`,'#winner-ranking-modal .modal-content');const label=await assertVisible(page,`[data-winner-seed="${seed}"] .identity-label`);assert.ok(label.scrollWidth<=label.clientWidth+1,JSON.stringify(label));assert.ok(await page.eval(`(()=>{const e=document.querySelector('[data-winner-seed="${seed}"] .identity-label');return e.scrollHeight<=e.clientHeight+1})()`));assert.equal(await page.eval(`document.querySelector('[data-winner-seed="${seed}"] .identity-label').textContent`),name+' ('+seed+')');}
+		await tap(page,'#close-ranking-btn','#winner-ranking-modal .modal-content');await tap(page,'#btn-reset-game','.host-dashboard-left');
+		for(const selector of ['.host-setup-screen','.scanner-screen']){
+			if(selector==='.scanner-screen'){await tap(page,'#opt-mode-a','.host-setup-screen');await tap(page,'#btn-host-proceed','.host-setup-screen');}
+			const r=await assertVisible(page,selector);assert.ok(r.width>=width-20,JSON.stringify(r));
+		}
+		assert.deepEqual(page.errors,[]);
+	}finally{await page.close();}
+});
+
+test('R-18: モードB復元時は旧登録IDだけのカードを順位へ含めない',async()=>{
+	const page=await browser.page({setup:once(setup('host',{...parent,mode:'mode_b',verifiedChildSeeds:['ABCD']}))});
+	try{
+		await page.wait('!!document.querySelector("#btn-winner-ranking")');await page.click('#btn-winner-ranking');assert.deepEqual(await page.eval('[...document.querySelectorAll("[data-winner-seed]")].map(e=>e.dataset.winnerSeed)'),['ABCD']);
+	}finally{await page.close();}
+});
