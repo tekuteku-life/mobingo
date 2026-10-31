@@ -59,13 +59,14 @@
 検査コマンドはテスト基盤の追加時に整備する。未整備のコマンドを実行済みとは扱わない。
 
 - `npm run check:syntax`：自作JSの構文、JSONの構文を検査する。未定義変数の検出やMermaid検査とは別である。
+- `npm run check:version`：package・lockルート・実行版定数・SWキャッシュの版一致を検査する。
 - `npm run check:types`：TypeScriptの`allowJs`・`checkJs`による自作JSの型検査を行う。
 - `npm run lint:indent`：コードのタブインデントを検査する。
 - `npm run lint`：上記の静的検査をまとめて実行する。
 
 コードのインデントはタブ、表示幅4である。Markdown本文、同梱外部ライブラリ、生成物とlockfileはインデント検査対象外である。ブロックコメントの` *`継続行は許容する。文書は「である」調、応答とアプリの説明・確認・エラー文章は「ですます」調である。アプリの短い操作名・見出しは名詞ラベルを許容する。
 
-製品変更ではSemVerを更新する。互換性を壊す変更はMajor、互換性のある機能追加はMinor、不具合修正はPatchである。現構成の管理対象は`package.json`、`package-lock.json`のルートパッケージ情報、`js/core/version.js`の実行版定数、`sw.js`の`mobingo-vX.Y.Z`キャッシュ名である。存在しない`version.json`やバージョン表示要素を前提にしない。文書・テストのみのコミットでは製品バージョンを変更しない。
+製品変更ではSemVerを更新する。互換性を壊す変更はMajor、互換性のある機能追加はMinor、不具合修正はPatchである。現構成の管理対象は`package.json`、`package-lock.json`のルートパッケージ情報、`js/core/version.js`の実行版定数、`sw.js`の`mobingo-vX.Y.Z`キャッシュ名である。版表示は実在する実行版定数から生成し、存在しない`version.json`を前提にしない。文書・テストのみのコミットでは製品バージョンを変更しない。
 
 ### Phase 5：最終レビューと受入
 

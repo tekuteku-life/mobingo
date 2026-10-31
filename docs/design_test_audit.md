@@ -134,3 +134,24 @@ QR生成と画像復号は実QRCode画像のjsQR復号で確認し、開催者�
 | UI | 両モードの当選順説明・空状態、全自作画面文章の静的常体検出、情報画面で版・状態・確認/適用の操作、閉じたDOMの遅延更新なし、4サイズ実touch到達、抽選/受付の適用拒否 |
 
 Workerのモックだけで本番更新成功とは扱わない。localhostの実Worker更新・通信遮断を別層で実行し、本番HTTPS・OSのインストール済みPWA更新は残余境界とする。
+
+### R-20/R-21と具体的assert
+
+| 対応 | 層・ファイル | assertと観測境界 |
+| --- | --- | --- |
+| 文体・現在版 | unit/ui-copy、ui/updates | 自作JS/HTML/manifestの既知の常体文末を検出し、両モード順位説明/空状態と参加者の縦横操作案内の丁寧体をDOMで検証する。句点なしの既知の案内も静的検出へ含める。APP_VERSIONと情報画面の値を比較する |
+| 版比較・失敗 | unit/updates | 数値比較・最大6桁・不正型、成功/不正応答/post例外/無応答/期限、登録・更新・install・controllerの各失敗、再試行、非対応を検証する |
+| 資源所有 | unit/updates、ui/updates | ポート個体のclose、期限timer集合0、getEventListenersの実登録0、旧status DOM不変と再表示への状態反映を検証する |
+| キャッシュ・メッセージ | integration/service-worker | reload Requestによる全資産precache、自動skipなし、scope内window・一致版だけのskip、返信port、他アプリ保持、他版のグローバルCache検索禁止を検証する |
+| 実更新 | system/updates | HTTPでsw/versionを2版に切替え、実waiting、確認取消でdocument token保持、controller切替と再読込、親/子/役割の保存文字列一致、旧Cache消去・他アプリCache保持を検証する |
+| 失敗・自然移行 | system/updates | HTTP503でSW取得失敗をカウントし最新扱いしない。CSS503でprecache失敗後も旧版を継続・再試行する。別タブはtokenを保持し、旧版からabout:blankへ離脱後CDPの対象versionId activated通知を待って再訪する |
+| 操作中断の防止 | unit/updates、ui/updates | 受付・回転・球表示中の拒否、完了後の適用。版返信を保留→情報close→native抽選→返信再開でもtoken/0手保持し、抽選完了後1手を維持して適用する |
+| レスポンシブ | ui/updates | 320×568、568×320、640×280、820×1180でmobile/DPR2/touch/向き有効。版・状態・両ボタン・取消/適用・復元/閉じるへ実pan/tapで到達する |
+
+APIモックの結果と、実HTTP・Worker・DOMの観測を分ける。Worker更新のローカル実測で本番配信済みPWAの更新を確認済みとはしない。最終の機械的ゲートと独立レビューは[review13](reviews/review13.md)へ保存する。
+
+ブラウザ基盤では、`unit/browser-driver`でCDP応答/期限/切断、実子がstderrを保持する親終了済みのケースと終了無視のケースを検証する。`integration/browser-driver`で実HTTP停止時のDevTools取得期限・context解放・初期化失敗後の再利用・Canvas実pixel・サーバー停止を検証する。CPU描画でのローカル実測であり、実機GPUの保証ではない。
+
+### 文体・更新機能の最終実測
+
+製品`8331066`（1.2.0）、試験基盤`a2de506`で`npm run lint`はエラー0件、`npm run test:coverage`は単体62・結合23・システム8・UI103の計196/196合格、終了コード0である。22自作対象の最小Line98.14%・最小Branch97.56%で、各ファイル97%ゲートを満たした。設計・テスト・コードの最終独立レビューはいずれも`PASS`である。中断・UI94/103・CPU描画と後処理の切り分け、ファイル別表、画面例、残余境界は[review13](reviews/review13.md)に保存する。
