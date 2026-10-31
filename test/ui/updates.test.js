@@ -52,3 +52,12 @@ test('R-21: 適用待ちで画面を閉じて抽選を開始しても再読み�
 		await page.click('#close-license-btn');await page.click('#wheel-arena');await page.click('#wheel-arena');await page.wait('JSON.parse(localStorage.mobingo_parent_state).currentTurn===1');await page.click('#header-license-btn');await page.click('#btn-apply-update');await page.wait('!window.documentToken && !!document.querySelector("#slide-track")',10000);assert.equal(await page.eval('JSON.parse(localStorage.mobingo_parent_state).currentTurn'),1);assert.deepEqual(page.errors,[]);
 	}finally{await page.close();await real.close();}
 });
+
+test('R-20: 参加者の縦横画面の操作案内も丁寧体である',async()=>{
+	for(const [width,height]of [[320,568],[844,390]]){
+		const page=await browser.page({width,height,mobile:true,setup:savedSetup});
+		try{
+			await page.wait('!!document.querySelector("#bingo-cells-grid")');const selectors=width>height?['.child-landscape-panel .child-operation-help','.child-landscape-panel .child-operation-detail']:['.child-portrait-footer .child-operation-help'];for(const selector of selectors){await reveal(page,selector,width>height?'.child-landscape-panel':'.child-portrait-footer');const text=await page.eval(`document.querySelector(${JSON.stringify(selector)}).textContent`);assert.match(text,/タップで穴を開けます/);assert.match(text,/長押し.*元に戻せます/);assert.doesNotMatch(text,/穴を開ける|元に戻す/);}
+		}finally{await page.close();}
+	}
+});
