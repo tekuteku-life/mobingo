@@ -141,9 +141,6 @@ test('R-17: 名前入力の不正値を保存せず、終了済み編集・QRの
 	const page=await browser.page();
 	try{
 		await page.click('#btn-select-child');
-		for(const name of ['a'.repeat(33),...['\u061c','\u200e','\u200f'].map(c=>'a'+c)]){
-			await page.input('#child-name-input',name);await page.click('#btn-start-card');assert.ok(await page.eval('document.querySelector("#setup-name-error").textContent.length>0'));assert.equal(await page.eval('localStorage.getItem("mobingo_child_state")'),null);
-		}
 		const name='"><svg/onload=alert(1)>';
 		await page.input('#child-name-input',name);await page.click('#btn-start-card');await page.wait('!!document.querySelector("#bingo-cells-grid")');await page.click('.child-portrait-name .btn-edit-name');assert.equal(await page.eval('document.querySelector("#edit-name-input").value'),name);assert.equal(await page.eval('document.querySelectorAll("[onload],[onerror]").length'),0);
 		await page.eval('window.oldNameForm=document.querySelector("#edit-name-form");window.oldQrButton=document.querySelector(".child-portrait-footer .btn-action-show-qr")');await page.input('#edit-name-input','未保存');const saved=await page.eval('localStorage.mobingo_child_state');
@@ -151,4 +148,15 @@ test('R-17: 名前入力の不正値を保存せず、終了済み編集・QRの
 		await page.eval('oldNameForm.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))');assert.equal(await page.eval('localStorage.mobingo_child_state'),saved);
 		await page.click('#header-switch-mode-btn');await page.eval('oldQrButton.click()');assert.equal(await page.eval('!!document.querySelector("#child-qr-modal")'),false);assert.equal(await page.eval('localStorage.mobingo_child_state'),saved);assert.deepEqual(page.errors,[]);
 	}finally{await page.close();}
+});
+
+test('R-17: 不正な名前は初回参加の入力から拒否する',async()=>{
+	for(const name of ['a'.repeat(33),...['\u061c','\u200e','\u200f'].map(c=>'a'+c)]){
+		const page=await browser.page();
+		try{
+			await page.click('#btn-select-child');await page.input('#child-name-input',name);assert.equal(await page.eval('document.querySelector("#child-name-input").value'),name);await page.click('#btn-start-card');
+			await page.wait('!!document.querySelector("#bingo-cells-grid") || !!document.querySelector("#setup-name-error")?.textContent');
+			assert.equal(await page.eval('!!document.querySelector("#bingo-cells-grid")'),false);assert.ok(await page.eval('document.querySelector("#setup-name-error").textContent.length>0'));assert.equal(await page.eval('localStorage.getItem("mobingo_child_state")'),null);
+		}finally{await page.close();}
+	}
 });
