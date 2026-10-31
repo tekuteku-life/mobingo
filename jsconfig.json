@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["ES2022", "DOM"],
+		"skipLibCheck": true,
+		"types": ["canvas-confetti"]
+	},
+	"include": ["js/**/*.js", "types/browser.d.ts"],
+	"exclude": ["js/lib"]
+}

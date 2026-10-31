@@ -9,22 +9,20 @@ class SoundManager {
 	}
 
 	initContext() {
-		if (!this.ctx && typeof window !== "undefined") {
-			const AudioCtx = window.AudioContext || window.webkitAudioContext;
-			if (AudioCtx) {
-				this.ctx = new AudioCtx();
+		try {
+			if (!this.ctx && typeof window !== "undefined") {
+				const AudioCtx = window.AudioContext || window.webkitAudioContext;
+				if (AudioCtx) this.ctx = new AudioCtx();
 			}
-		}
-		if (this.ctx && this.ctx.state === "suspended") {
-			this.ctx.resume().catch(() => {});
+			if (this.ctx && this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
+		} catch (error) {
+			this.ctx = null;
+			console.warn("Audio initialization failed:", error);
 		}
 	}
 
 	unlock() {
 		this.initContext();
-		if (this.ctx && this.ctx.state === "suspended") {
-			this.ctx.resume().catch(() => {});
-		}
 	}
 
 	setMuted(muted) {
@@ -122,7 +120,6 @@ class SoundManager {
 		const t = this.ctx.currentTime;
 		const notes = [587.33, 880, 1174.66];
 		notes.forEach((freq, idx) => {
-			if (!this.ctx) return;
 			const osc = this.ctx.createOscillator();
 			const gain = this.ctx.createGain();
 
@@ -148,7 +145,6 @@ class SoundManager {
 
 		const t = this.ctx.currentTime;
 		[0, 0.08].forEach((offset) => {
-			if (!this.ctx) return;
 			const osc = this.ctx.createOscillator();
 			const gain = this.ctx.createGain();
 
@@ -183,7 +179,6 @@ class SoundManager {
 		];
 
 		melody.forEach((n) => {
-			if (!this.ctx) return;
 			const osc = this.ctx.createOscillator();
 			const gain = this.ctx.createGain();
 
@@ -238,7 +233,6 @@ class SoundManager {
 		const t = this.ctx.currentTime;
 		const freqs = [1046.5, 1318.5, 1567.98, 1975.53, 2093.0];
 		freqs.forEach((freq, idx) => {
-			if (!this.ctx) return;
 			const osc = this.ctx.createOscillator();
 			const gain = this.ctx.createGain();
 

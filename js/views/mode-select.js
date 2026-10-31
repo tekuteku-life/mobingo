@@ -3,8 +3,9 @@ import { soundManager } from "../core/audio.js";
 
 export function renderModeSelect(container, { onSelectChild, onSelectHost }) {
 	container.innerHTML = `
-		<div class="flex-1 flex flex-col items-center justify-center" style="padding:1rem; max-width:24rem; margin:0 auto; width:100%; text-align:center;">
-			<div style="width:5rem; height:5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f59e0b, #ec4899, #4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 20px 25px -5px rgba(79, 70, 229, 0.4); margin-bottom:1.5rem;">
+		<div class="setup-screen mode-select-screen">
+			<div class="setup-intro">
+			<div class="setup-logo" style="width:5rem; height:5rem; border-radius:1.5rem; background:linear-gradient(135deg, #f59e0b, #ec4899, #4f46e5); display:flex; align-items:center; justify-content:center; box-shadow:0 20px 25px -5px rgba(79, 70, 229, 0.4); margin-bottom:1.5rem;">
 				<span style="font-size:2.5rem; font-weight:900; color:#fff;">M</span>
 			</div>
 
@@ -13,7 +14,8 @@ export function renderModeSelect(container, { onSelectChild, onSelectHost }) {
 				電波いらずでどこでも動作する、完全オフライン対応のデジタルビンゴ
 			</p>
 
-			<div style="width:100%; display:flex; flex-direction:column; gap:1rem;">
+			</div>
+			<div class="setup-actions" style="width:100%; display:flex; flex-direction:column; gap:1rem;">
 				<button id="btn-select-child" class="btn-primary" style="padding:1.1rem; border-radius:1rem; display:flex; align-items:center; justify-content:between; width:100%; text-align:left; box-shadow:0 10px 15px -3px rgba(79, 70, 229, 0.3);">
 					<div style="display:flex; align-items:center; gap:0.75rem;">
 						<div style="width:2.5rem; height:2.5rem; border-radius:0.75rem; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center;">

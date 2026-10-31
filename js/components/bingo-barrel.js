@@ -433,11 +433,4 @@ export class BingoBarrel {
 		ctx.restore();
 	}
 
-	destroy() {
-		if (this.animId) {
-			cancelAnimationFrame(this.animId);
-			this.animId = null;
-		}
-	}
 }
-
