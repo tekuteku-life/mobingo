@@ -87,7 +87,7 @@ export async function startBrowser() {
 		const browser = await CDP.connect(endpoint);
 		return {
 			origin,
-			async page({ width = 390, height = 844, setup = '' } = {}) {
+			async page({ width = 390, height = 844, mobile = false, setup = '' } = {}) {
 				const { browserContextId } = await browser.send('Target.createBrowserContext');
 				const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId });
 				await browser.send('Target.activateTarget', { targetId });
@@ -100,7 +100,11 @@ export async function startBrowser() {
 				await cdp.send('Runtime.enable');
 				await cdp.send('Page.enable');
 				await cdp.send('Network.enable');
-				await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+				const setViewport = async (width, height) => {
+					await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile, screenOrientation: { type: width > height ? 'landscapePrimary' : 'portraitPrimary', angle: width > height ? 90 : 0 } });
+				};
+				await setViewport(width, height);
+				if (mobile) await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
 				await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: setup });
 				if (process.env.MOBINGO_COVERAGE) {
 					await cdp.send('Profiler.enable');
@@ -121,6 +125,38 @@ export async function startBrowser() {
 							await delay(25);
 						}
 						throw new Error(`Browser condition timed out: ${expression}`);
+					},
+					async resize(width, height) {
+						await setViewport(width, height);
+						await page.wait(`Math.round(visualViewport.width) === ${width} && Math.round(visualViewport.height) === ${height}`);
+					},
+					async tap(selector) {
+						const target = await page.eval(`(() => { const e=document.querySelector(${JSON.stringify(selector)});if(!e)return null;const r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2,h=document.elementFromPoint(x,y);return {x,y,w:r.width,h:r.height,disabled:e.disabled,hit:h===e||e.contains(h)};})()`);
+						assert.ok(target && target.w > 0 && target.h > 0 && target.hit && !target.disabled, `Touch target must be visible: ${selector}`);
+						await cdp.send('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[{x:target.x,y:target.y,id:1}] });
+						await cdp.send('Input.dispatchTouchEvent', { type:'touchEnd', touchPoints:[] });
+					},
+					async swipe(selector, toward = 'end') {
+						const r = await page.eval(`(() => {const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();const top=Math.max(0,r.top),bottom=Math.min(visualViewport.height,r.bottom);return {x:Math.min(innerWidth-16,r.right-24),top,height:bottom-top};})()`);
+						assert.ok(r.height > 40, `Scrollable area must be visible: ${selector}`);
+						const distance = Math.min(220, r.height * 0.55);
+						const startY=r.top+r.height*(toward==='end'?0.8:0.2);
+						await cdp.send('Input.dispatchTouchEvent', { type:'touchStart', touchPoints:[{x:r.x,y:startY,id:1}] });
+						for(let step=1;step<=8;step++){
+							await cdp.send('Input.dispatchTouchEvent', { type:'touchMove', touchPoints:[{x:r.x,y:startY+(toward==='end'?-distance:distance)*step/8,id:1}] });
+							await delay(20);
+						}
+						await delay(80);
+						await cdp.send('Input.dispatchTouchEvent', { type:'touchEnd', touchPoints:[] });
+						await page.eval('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+					},
+					async type(selector, value) {
+						await page.tap(selector);
+						await cdp.send('Input.dispatchKeyEvent', { type:'rawKeyDown', key:'a', code:'KeyA', windowsVirtualKeyCode:65, modifiers:2 });
+						await cdp.send('Input.dispatchKeyEvent', { type:'keyUp', key:'a', code:'KeyA', windowsVirtualKeyCode:65 });
+						await cdp.send('Input.dispatchKeyEvent', { type:'rawKeyDown', key:'Backspace', code:'Backspace', windowsVirtualKeyCode:8 });
+						await cdp.send('Input.dispatchKeyEvent', { type:'keyUp', key:'Backspace', code:'Backspace', windowsVirtualKeyCode:8 });
+						await cdp.send('Input.insertText', { text:value });
 					},
 					async collect() {
 						if (!process.env.MOBINGO_COVERAGE) return;
