@@ -102,3 +102,22 @@ mobile UIは24ケースである。投影の全75数字の収容、5行構成、
 | QR入力境界とXSS | 旧QR、新QR、JSON破損・余分な属性・prototypeキー・型・長文の拒否、受付/照合/トースト/当選順/復元で悪性文字列が文字として見えること |
 | 順位の正しさ | 独立手番再生、同順位1/1/3、解禁、0/75手、未達成、重複、Undo/復元/新ゲーム、同名別ID |
 | 非同期の名前/順位更新 | 受付確定中と閉じた照合のKDF完了で、名前・対象ID・保存値・旧DOMを部分更新しないこと |
+
+### 追加後の要求と実assertの対応
+
+| 要求・設計 | テスト層・ファイル | 具体的assert |
+| --- | --- | --- |
+| R-17／E-15／I-16 | unit/identity、unit/storage | NFC/空白/絵文字32・33/原文256・257、C0/C1/全方向制御文字、旧QR名前null・新空文字解除、型/不正JSON/余分な属性/prototype、5文字escape、旧保存返却形と関連状態全体拒否 |
+| R-17／U-09 | ui/identity-layout | 入力値の実反映・不正値で非遷移/未保存、名前編集で開封維持、引用符を含む悪性文字列の入力属性・本文復元、実QR画像をjsQRで復号、新形式のseed/name一致 |
+| R-17／E-08、E-15 | ui/identity-layout | 受付chip/toastの人数1・名前更新/旧QR保持/解除/削除、HTMLイベント属性非生成、受付確定中KDF保留で一覧/名前/保存不変、閉じた照合の旧body/保存不変、破棄済み編集・QRイベントの無効化 |
+| R-18／E-16／I-16 | unit/ranking、integration/ranking | 同順位1/1/3とID順、0/4/5/29/30/75手、未達成、出目不足、自然成立/解禁の最大値。別定義の12+3ラインを各手番で再生して決定論カード4枚・解禁4条件・手番4条件と比較 |
+| R-18／U-09 | system/ranking、ui/identity-layout | 成立手番で表示・Undoで除外・再読込で保持、mode A登録+有効照合の和集合、同名別IDの2行、未達成は名前のみ、重複照合1行、mode B旧未照合登録ID除外、リセット後空一覧 |
+| R-19／U-09 | ui/identity-layout | 8サイズの開催者幅の下限/上限・左右2ペイン矩形・操作、可視reset1個/高さ36以下・QR40以上・ID/リーチ中心Y、PC実mouse長押し時のstroke+CTMと全クリップ祖先（自然/縦長/横長） |
+| R-17〜19／U-08、U-09 | ui/identity-layout、ui/mobile-layout | mobile DPR2/touch/向き有効、32絵文字の編集全文・取消、順位各名前のクリップ/scroll寸法、準備・受付幅を4サイズでnative swipe/tap。従来7サイズ24ケースと初期参加ボタン収容を維持 |
+| R-13／I-16 | integration/service-worker、system/game | 新identity/rankingを含む全実行資産のprecache、実SW下の通信遮断再訪。カード生成v1ベクトルを維持 |
+
+QR生成と画像復号は実QRCode画像のjsQR復号で確認し、開催者カメラ経路の復号結果はローカルCanvas映像と復号スタブで入力する。実端末カメラの光学性能や物理モニターを確認済みとはしない。最終結果と再入場履歴は[review10](reviews/review10.md)へ記録する。
+
+### PC/タブレット・表示名・当選順の最終実測
+
+製品`4fdc09e`（1.1.0）で`npm run lint`はエラー0件、`npm run test:coverage`は単体47・結合21・システム4・UI92の計164/164合格、終了コード0である。全20自作対象の最小Line99.18%・最小Branch97.56%で、各ファイル97%ゲートを満たした。設計・テスト・コードの最終独立レビューはいずれも`PASS`である。初回UI失敗とchild Branch未達を是正した経緯、実測表、画面例と残余境界は[review10](reviews/review10.md)へ記録する。
