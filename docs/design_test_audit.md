@@ -174,3 +174,22 @@ APIモックの結果と、実HTTP・Worker・DOMの観測を分ける。Worker�
 ### R-22の最終実測
 
 1.3.0の製品ソースで`npm run lint`は終了コード0、`npm run test:coverage`はNode側94/94・UI129/129の計223/223合格、終了コード0である。22自作対象の各Line/Branchは97%以上、最小Line98.28%・最小Branch97.68%である。回転延長に対応した7.8秒待機の旧タイマー試験は別途1/1合格である。独立レビューとPixel 9a実機の音声・振動確認は未実施である。[実測表と残余境界](reviews/review14.md)を参照する。
+
+## アプリURL共有（R-23）
+
+| 対応 | 試験 | 具体的assertと境界 |
+| --- | --- | --- |
+| 同じURLの3方式 | `ui/share` | query/hash付きの別パスで、表示input・Clipboard引数・Web Share引数・実QRデコードの完全一致を検証する。共有API呼出し時のuserActivation=trueと保存ゲームJSON不変、カード用QRの従来形式を確認する |
+| 小画面・全役割 | `ui/share` | 320/381pxの選択・参加者・開催者ヘッダーを実測し、既存操作も全件hit-testする。390×844、568×320、640×280、844×220、820×1180で実touch/panによる3方式・QR・閉じるへの到達を検証する |
+| コピー拒否・非対応 | `ui/share` | URLの全選択と手動コピー案内、端末共有ボタンの無効化、QRの代替利用を検証する。実Clipboardへのwrite/readbackは別ケースで測る |
+| 共有取消・失敗 | `ui/share` | AbortError、同期例外、再試行を区別する。成功は共有メニューの操作完了とだけ表示する。相手への配送は観測対象外である |
+| 非同期・破棄 | `ui/share` | コピー/共有の保留中連打、閉鎖後のresolve/reject、再表示後の状態、旧ボタン再配送を検証する。QR二重生成・失敗再試行・閉鎖後の成功/失敗でも旧DOMを変えないことを確認する |
+| モーダル所有 | `ui/share` | 同時表示1画面、Escape・背景・閉じる、非Escape継続、役割変更での破棄とフォーカス復帰を検証する |
+| オフライン・静的資産 | `integration/service-worker`、`ui/share` | 全自作モジュールのprecache検査、実SW制御後の通信遮断・再読込での共有モーダル表示とQR生成を検証する |
+| 共有アイコン | `unit/device` | 新しいSVGを既存アイコンと同じ寸法・形式で描画する |
+
+最終実測と実端末の未確認境界は[review15](reviews/review15.md)へ記録する。
+
+### R-23の最終実測
+
+1.4.0で`npm run lint`は終了コード0、`npm run test:coverage`はNode側94/94・UI151/151の計245/245合格、終了コード0である。23自作対象の各Line/Branchは97%以上、最小Line98.36%・最小Branch97.68%であり、共有モジュールはLine/Branchとも100%である。独立レビューと実端末でのOS共有・配送は未確認である。[実測・是正・画面例](reviews/review15.md)へ記録した。
