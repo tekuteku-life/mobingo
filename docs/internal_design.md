@@ -19,6 +19,10 @@
 | I-13 | `sw.js`、`manifest.json` | 静的資産のキャッシュとPWA起動条件 |
 | I-14 | `js/core/lifecycle.js` | 画面・子画面の生存状態、タイマー、破棄処理の所有権 |
 
+R-22ではアプリのcapture段階でpointer・touch終了・click・keydownから音声を再開する。初回操作だけで監視を解除せず、suspended/interrupted状態を再試行し、短い無音バッファで出力を初期化する。回転音の時刻は負値を許容しない。振動の共通設定と例外隔離は`haptics.js`に集約し、回転終了・画面破棄・オフ切替時に振動を停止する。
+
+開催者の再描画は旧左パネルのscrollTopを取得し、新左パネルへ復元する。球表示中の成立スライドは保存・旧scope破棄・新scopeでの次球開始を順に行う。リセットの省略判定は保留中の排出球を含む実効手番と、現在の特殊役の有効性から再計算する。参加者の省略判定も保存待ちの再描画に依存せず現在の開封集合から計算する。
+
 `index.html`は同梱のqrcode、jsQR、canvas-confettiをclassic scriptで読み込み、`js/app.js`をES Moduleで起動する。`css/style.css`はユーティリティと独自レイアウトを含む。React、Viteは既存package依存に残るが実行経路では使わず、本構成の配信にビルドは不要である。
 
 ## 2. 決定論的生成（I-02〜I-05）
