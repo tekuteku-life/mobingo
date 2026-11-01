@@ -7,6 +7,9 @@ export function renderIcon(name, size = 20, className = "") {
 	let inner = "";
 
 	switch (name) {
+		case "share":
+			inner = `<circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="m8.6 10.5 6.8-4"></path><path d="m8.6 13.5 6.8 4"></path>`;
+			break;
 		case "volume":
 			inner = `<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>`;
 			break;

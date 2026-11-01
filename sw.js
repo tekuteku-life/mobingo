@@ -1,5 +1,5 @@
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
-const CACHE_NAME = 'mobingo-v1.3.0';
+const CACHE_NAME = 'mobingo-v1.4.0';
 const STATIC_ASSETS = [
 	'./',
 	'./index.html',
@@ -28,6 +28,7 @@ const STATIC_ASSETS = [
 	'./js/views/child.js',
 	'./js/views/host.js',
 	'./js/views/license-modal.js',
+	'./js/views/share-modal.js',
 	'./js/components/bingo-barrel.js',
 	'./js/components/slide-action.js'
 ];

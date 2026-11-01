@@ -9,6 +9,7 @@ import { hapticsManager } from "./core/haptics.js";
 import { wakeLockManager } from "./core/wakelock.js";
 import { loadAppMode, saveAppMode } from "./core/storage.js";
 import { showLicenseModal } from "./views/license-modal.js";
+import { showShareModal } from "./views/share-modal.js";
 import { renderModeSelect } from "./views/mode-select.js";
 import { renderChildView } from "./views/child.js";
 import { renderHostView } from "./views/host.js";
@@ -26,6 +27,7 @@ class MobingoApp {
 	constructor() {
 		this.appEl = document.getElementById("app");
 		this.disposeView = () => {};
+		this.disposeShare = () => {};
 		this.currentMode = loadAppMode(); // "select", "child", or "host"
 	}
 
@@ -65,7 +67,10 @@ class MobingoApp {
 					${badgeText ? `<span class="badge">${badgeText}</span>` : ""}
 				</div>
 
-				<div style="display:flex; align-items:center; gap:0.35rem;">
+				<div class="header-controls">
+					<button id="header-share-btn" class="header-btn" title="アプリのURLを共有" aria-label="アプリのURLを共有">
+						${renderIcon("share", 20)}
+					</button>
 					<button id="header-haptics-btn" class="header-btn" title="振動 ${hapticsEnabled ? 'オン' : 'オフ'}" aria-label="振動 ${hapticsEnabled ? 'オン' : 'オフ'}" aria-pressed="${hapticsEnabled}" style="color:${hapticsEnabled ? '#94a3b8' : '#f43f5e'};">
 						${renderIcon("smartphone", 20)}
 					</button>
@@ -98,6 +103,9 @@ class MobingoApp {
 		const switchBtn = this.appEl.querySelector("#header-switch-mode-btn");
 		const licenseBtn = this.appEl.querySelector("#header-license-btn");
 		const hapticsBtn = this.appEl.querySelector("#header-haptics-btn");
+		this.appEl.querySelector("#header-share-btn").addEventListener("click", () => {
+			this.disposeShare = showShareModal();
+		});
 		hapticsBtn.addEventListener("click", () => {
 			const next = !hapticsManager.getEnabled();
 			hapticsManager.setEnabled(next);
@@ -144,6 +152,7 @@ class MobingoApp {
 	}
 
 	render() {
+		this.disposeShare();
 		this.disposeView();
 		this.disposeView = () => {};
 		this.appEl.innerHTML = `
