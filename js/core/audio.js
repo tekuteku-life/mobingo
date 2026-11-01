@@ -7,19 +7,28 @@ class SoundManager {
 		this.ctx = null;
 		this.isMuted = false;
 		this.unlockedContext = null;
+		this.lastErrorName = "";
 	}
 
-	initContext() {
+	initContext(resume = true) {
 		try {
 			if (this.ctx?.state === "closed") this.ctx = null;
 			if (!this.ctx && typeof window !== "undefined") {
 				const AudioCtx = window.AudioContext || window.webkitAudioContext;
-				if (AudioCtx) this.ctx = new AudioCtx();
+				if (AudioCtx) { this.ctx = new AudioCtx(); this.lastErrorName = ""; }
 			}
 			// Safari can also enter an interrupted state after a call or app switch.
-			if (this.ctx && this.ctx.state !== "running") this.ctx.resume().catch(() => {});
+			if (resume && this.ctx && this.ctx.state !== "running") {
+				const ctx = this.ctx;
+				ctx.resume().then(() => {
+					if (this.ctx === ctx) this.lastErrorName = "";
+				}).catch(error => {
+					if (this.ctx === ctx) this.lastErrorName = error?.name || "Error";
+				});
+			}
 		} catch (error) {
 			this.ctx = null;
+			this.lastErrorName = error?.name || "Error";
 			console.warn("Audio initialization failed:", error);
 		}
 	}
@@ -44,6 +53,59 @@ class SoundManager {
 
 	getMuted() {
 		return this.isMuted;
+	}
+
+	getStatus() {
+		return {
+			supported: typeof window !== "undefined" && typeof (window.AudioContext || window.webkitAudioContext) === "function",
+			muted: this.isMuted,
+			contextState: this.ctx?.state ?? "not-created",
+			lastErrorName: this.lastErrorName,
+		};
+	}
+
+	// A user-triggered probe. Acceptance by the browser does not prove speaker output.
+	/** @returns {Promise<{state: string, errorName?: string}>} */
+	testPlayback({ signal = null, timeoutMs = 2000 } = {}) {
+		if (this.isMuted) return Promise.resolve({ state: "muted" });
+		this.initContext(false);
+		const ctx = this.ctx;
+		if (!ctx) return Promise.resolve({ state: this.getStatus().supported ? "failed" : "unsupported", errorName: this.lastErrorName });
+		return new Promise(resolve => {
+			let settled = false;
+			let timer = null;
+			const finish = result => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				signal?.removeEventListener("abort", abort);
+				resolve(result);
+			};
+			const abort = () => finish({ state: "cancelled" });
+			if (signal?.aborted) { abort(); return; }
+			signal?.addEventListener("abort", abort, { once: true });
+			timer = setTimeout(() => finish({ state: "pending" }), timeoutMs);
+			const play = () => {
+				if (settled) return;
+				if (this.ctx !== ctx) { finish({ state: "cancelled" }); return; }
+				if (this.isMuted) { finish({ state: "muted" }); return; }
+				if (ctx.state !== "running") { finish({ state: "pending" }); return; }
+				try {
+					this.lastErrorName = "";
+					this.playScanBeep();
+					finish({ state: "requested" });
+				} catch (error) { failed(error); }
+			};
+			const failed = error => {
+				if (settled) return;
+				this.lastErrorName = error?.name || "Error";
+				finish({ state: "failed", errorName: this.lastErrorName });
+			};
+			try {
+				if (ctx.state === "running") play();
+				else ctx.resume().then(play, failed);
+			} catch (error) { failed(error); }
+		});
 	}
 
 	// 1. Tactile Punch Sound ("Pako!")
