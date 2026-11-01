@@ -70,7 +70,7 @@ test('R-16: 抽選中リセット後に旧タイマーが保存状態を復活�
 	const page=await browser.page();
 	try {
 		await page.click('#btn-select-host'); await page.click('#btn-host-proceed'); await page.wait('!!document.querySelector("#slide-thumb")');
-		await page.drag(); await page.click('#btn-reset-game'); await delay(7100);
+		await page.drag(); await page.click('#btn-reset-game'); await delay(7800);
 		assert.equal(await page.eval('localStorage.getItem("mobingo_parent_state")'),null);
 		assert.equal(await page.eval('!!document.querySelector("#host-seed-input")'),true);
 		assert.deepEqual(page.errors,[]);

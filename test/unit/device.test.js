@@ -6,6 +6,32 @@ import { renderIcon } from '../../js/core/icons.js';
 import { wakeLockManager } from '../../js/core/wakelock.js';
 
 const methods = ['playPunch', 'playRestore', 'playRoll', 'playBallEjected', 'playScanBeep', 'playFanfare', 'playHotAlert', 'playSpecialUnlock'];
+test('R-22: 音声の無音初期化・中断復帰・閉じたcontextの再生成と回転時刻の下限', async () => {
+	let resumes = 0, buffers = 0;
+	const starts = [];
+	const random = Math.random;
+	class AudioContext {
+		state = 'suspended'; currentTime = 0; destination = {};
+		resume() { resumes++; this.state = 'running'; return Promise.resolve(); }
+		createBuffer() { return {}; }
+		createBufferSource() { return { connect() {}, start() { buffers++; } }; }
+		createOscillator() { return { frequency: { setValueAtTime() {} }, connect() {}, start(t) { starts.push(t); }, stop() {} }; }
+		createGain() { return { gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+	}
+	try {
+		globalThis.window = { AudioContext }; soundManager.ctx = null;
+		soundManager.unlock();
+		assert.equal(buffers, 1);
+		soundManager.ctx.state = 'interrupted';
+		soundManager.unlock(); assert.equal(resumes, 2);
+		const old = soundManager.ctx; old.state = 'closed';
+		soundManager.unlock(); assert.notEqual(soundManager.ctx, old);
+		Math.random = () => 0;
+		soundManager.playRoll();
+		assert.ok(starts.every(t => t >= 0));
+	} finally { soundManager.ctx = null; delete globalThis.window; Math.random = random; }
+});
+
 test('R-15: 音声非対応・ミュート・全効果音のAPI呼出し', () => {
 	delete globalThis.window;
 	for (const method of methods) soundManager[method]();
@@ -35,16 +61,27 @@ test('R-15: 音声非対応・ミュート・全効果音のAPI呼出し', () =>
 });
 
 test('R-15: 振動非対応・例外・全パターン', () => {
+	const feedback = Object.values(haptics).filter(fn => typeof fn === 'function');
 	const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 	Object.defineProperty(globalThis, 'navigator', { value: undefined, configurable: true });
-	for (const fn of Object.values(haptics)) fn();
+	for (const fn of feedback) fn();
 	const patterns = [];
 	Object.defineProperty(globalThis, 'navigator', { value: { vibrate: (value) => patterns.push(value) }, configurable: true });
 	haptics.vibratePunch(); haptics.vibrateRestore(); haptics.vibrateBingo();
 	for (const level of ['single', 'double', 'triple_or_more', 'none']) haptics.vibrateReach(level);
 	assert.deepEqual(patterns, [30, [40,30,40], [100,50,100,50,250], 60, [60,40,60], [80,40,80,40,100]]);
+	haptics.vibrateRoll(); haptics.vibrateBallEjected();
+	assert.deepEqual(patterns.at(-1), [60,40,100]);
+	assert.ok(patterns.at(-2).length > 5);
+	haptics.hapticsManager.setEnabled(false);
+	assert.equal(haptics.hapticsManager.getEnabled(), false);
+	assert.equal(patterns.at(-1), 0);
+	const count = patterns.length;
+	for (const fn of feedback) if (fn !== haptics.stopVibration) fn('single');
+	assert.equal(patterns.length, count);
+	haptics.hapticsManager.setEnabled(true);
 	Object.defineProperty(globalThis, 'navigator', { value: { vibrate() { throw new Error('denied'); } }, configurable: true });
-	for (const fn of Object.values(haptics)) assert.doesNotThrow(fn);
+	for (const fn of feedback) assert.doesNotThrow(fn);
 	assert.doesNotThrow(()=>haptics.vibrateReach("single"));
 	Object.defineProperty(globalThis, 'navigator', original);
 });
