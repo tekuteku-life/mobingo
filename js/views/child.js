@@ -327,15 +327,17 @@ export function renderChildView(container) {
 								style="padding:0.65rem 0.5rem; border-radius:0.75rem; font-size:0.75rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:0.35rem;"
 							>
 								${renderIcon("qrcode", 16)}
-								<span>🎫 検証用QR</span>
+								<span>参加登録・照合用QR</span>
 							</button>
 						</div>
 
 						<!-- Bottom Visible Reset Button (Portrait) -->
+						<div class="child-reset-section">
 						<button class="btn-action-reset-card btn-child-reset-visible" style="justify-content:center; padding:0.3rem 0.55rem; font-size:0.7rem; border-radius:0.6rem;">
 							${renderIcon("refresh", 13)}
 							<span>カードを作り直す（リセット）</span>
 						</button>
+						</div>
 					</div>
 				</div>
 
@@ -388,7 +390,7 @@ export function renderChildView(container) {
 							style="padding:0.75rem; border-radius:0.75rem; font-size:0.8rem; font-weight:800; display:flex; align-items:center; justify-content:center; gap:0.4rem;"
 						>
 							${renderIcon("qrcode", 18)}
-							<span>🎫 当選照合用QRを表示</span>
+							<span>参加登録・照合用QRを表示</span>
 						</button>
 
 						<button
@@ -401,6 +403,7 @@ export function renderChildView(container) {
 							<span>★特殊役: ${specialRuleActive ? "有効 (4隅/X/十)" : "無効"}</span>
 						</button>
 
+						<div class="child-reset-section">
 						<button
 							class="btn-action-reset-card btn-child-reset-visible"
 							style="padding:0.3rem 0.55rem; border-radius:0.6rem; font-size:0.7rem; display:flex; align-items:center; justify-content:center; gap:0.4rem; margin-top:0.2rem; align-self:flex-end;"
@@ -408,6 +411,7 @@ export function renderChildView(container) {
 							${renderIcon("refresh", 14)}
 							<span>カードを作り直す（リセット）</span>
 						</button>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -488,8 +492,11 @@ export function renderChildView(container) {
 		const resetButtons = container.querySelectorAll(".btn-action-reset-card");
 		resetButtons.forEach((btn) => {
 			btn.addEventListener("click", () => {
+				if (!scope.active) return;
 				soundManager.unlock();
 				if (confirm("カードを破棄して、参加者IDの入力（新規カード作成）に戻りますか？\n（現在の穴あけ状態はリセットされます）")) {
+					const { isBingo } = calculateReachAndBingo(currentCard, openedCoords, specialRuleActive);
+					if (!isBingo && !confirm("本当にカードを作り直しますか？現在のカードと穴あけ状態は削除され、元に戻せません。")) return;
 					clearChildState();
 					currentSeed = "";
 					displayName = "";

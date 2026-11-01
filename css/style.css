@@ -478,6 +478,13 @@ html, body {
 }
 #app-main { min-width: 0; }
 .app-header { gap: 0.25rem; }
+.header-controls { display: flex; align-items: center; gap: 0.25rem; }
+.app-header .badge { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 380px) {
+	.app-header { padding: 0 0.5rem; }
+	.header-controls { gap: 0.1rem; }
+	.app-header .badge { display: none; }
+}
 .app-header.is-host .logo-btn > span { display: none; }
 .projector-toggle {
 	min-height: 44px;
@@ -763,6 +770,14 @@ html, body {
 .btn-edit-name { flex-shrink: 0; padding: 0.25rem 0.5rem; border-radius: 0.5rem; font-size: 0.7rem; }
 .child-portrait-footer .btn-action-reset-card { display: flex; margin-left: auto; }
 .btn-action-reset-card { width: fit-content; max-height: 36px; }
+.child-reset-section {
+	border-top: 1px solid #334155;
+	padding-top: 0.5rem;
+	margin-top: 0.35rem;
+	display: flex;
+	justify-content: flex-end;
+	flex-shrink: 0;
+}
 .name-field { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; color: #cbd5e1; width: 100%; }
 .name-input { width: 100%; min-width: 0; border: 1px solid #475569; border-radius: 0.6rem; padding: 0.65rem; background: #030712; color: #fff; font: inherit; user-select: text; }
 .form-error { color: #fda4af; font-size: 0.75rem; overflow-wrap: anywhere; }
@@ -790,3 +805,16 @@ html, body {
 .update-actions button { padding: 0.65rem; min-height: 44px; border-radius: 0.6rem; font-size: 0.8rem; }
 .update-actions [hidden] { display: none; }
 .update-help { margin-top: 0.6rem; color: #94a3b8; font-size: 0.7rem; }
+
+.share-modal-content { gap: 0.75rem; font-size: 0.85rem; }
+.share-heading-row, #share-heading { display: flex; align-items: center; gap: 0.5rem; }
+.share-heading-row { justify-content: space-between; }
+#share-heading { font-size: 1rem; min-width: 0; }
+.share-modal-content button { min-height: 44px; padding: 0.65rem; border-radius: 0.65rem; }
+.share-modal-content button:disabled { opacity: 0.5; cursor: default; }
+#share-url { user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; }
+#share-status:empty { display: none; }
+#share-qr-panel { text-align: center; }
+#share-qr-canvas { display: block; width: min(220px, 100%, calc(100dvh - 4.5rem)); height: auto; margin: 0.5rem auto 0; border-radius: 0.5rem; }
+#share-qr-canvas[hidden] { display: none; }
+.share-modal-content [hidden] { display: none; }

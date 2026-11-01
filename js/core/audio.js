@@ -6,15 +6,18 @@ class SoundManager {
 	constructor() {
 		this.ctx = null;
 		this.isMuted = false;
+		this.unlockedContext = null;
 	}
 
 	initContext() {
 		try {
+			if (this.ctx?.state === "closed") this.ctx = null;
 			if (!this.ctx && typeof window !== "undefined") {
 				const AudioCtx = window.AudioContext || window.webkitAudioContext;
 				if (AudioCtx) this.ctx = new AudioCtx();
 			}
-			if (this.ctx && this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
+			// Safari can also enter an interrupted state after a call or app switch.
+			if (this.ctx && this.ctx.state !== "running") this.ctx.resume().catch(() => {});
 		} catch (error) {
 			this.ctx = null;
 			console.warn("Audio initialization failed:", error);
@@ -23,6 +26,16 @@ class SoundManager {
 
 	unlock() {
 		this.initContext();
+		if (!this.ctx || (this.unlockedContext === this.ctx && this.ctx.state === "running")) return;
+		try {
+			// Prime the output synchronously within a user gesture, including touchend.
+			const source = this.ctx.createBufferSource();
+			source.buffer = this.ctx.createBuffer(1, 1, 22050);
+			source.connect(this.ctx.destination);
+			source.onended = () => source.disconnect();
+			source.start(0);
+			this.unlockedContext = this.ctx;
+		} catch {}
 	}
 
 	setMuted(muted) {
@@ -82,7 +95,7 @@ class SoundManager {
 	}
 
 	// 3. Barrel Rolling / Drumroll
-	playRoll(durationMs = 1800) {
+	playRoll(durationMs = 2300) {
 		if (this.isMuted) return;
 		this.initContext();
 		if (!this.ctx) return;
@@ -93,7 +106,7 @@ class SoundManager {
 		const step = (durationMs / 1000) / clicks;
 
 		for (let i = 0; i < clicks; i++) {
-			const clickTime = startTime + i * step + (Math.random() * 0.01 - 0.005);
+			const clickTime = Math.max(startTime, startTime + i * step + (Math.random() * 0.01 - 0.005));
 			const osc = ctx.createOscillator();
 			const gain = ctx.createGain();
 
