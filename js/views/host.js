@@ -10,6 +10,7 @@ import {
 	FREE_CELL,
 } from "../core/bingo.js";
 import { soundManager } from "../core/audio.js";
+import { vibrateRestore, vibrateRoll, vibrateBallEjected, stopVibration } from "../core/haptics.js";
 import { renderIcon } from "../core/icons.js";
 import { saveParentState, loadParentState, clearParentState } from "../core/storage.js";
 import { BingoBarrel } from "../components/bingo-barrel.js";
@@ -477,7 +478,8 @@ export function renderHostView(container) {
 	}
 
 	// 3. Parent Game Dashboard
-	function renderDashboard() {
+	function renderDashboard(startNextSpin = false) {
+		const scrollTop = container.querySelector(".host-dashboard-left")?.scrollTop ?? 0;
 		const scope = beginScreen();
 		const currentBall = currentTurn > 0 ? drawSequence[currentTurn - 1] : null;
 		const history = drawSequence.slice(0, currentTurn);
@@ -747,10 +749,11 @@ export function renderHostView(container) {
 			</div>
 		`;
 
-		bindDashboardEvents({ leastOpened, scope });
+		container.querySelector(".host-dashboard-left").scrollTop = scrollTop;
+		bindDashboardEvents({ leastOpened, scope, startNextSpin });
 	}
 
-	function bindDashboardEvents({ leastOpened, scope }) {
+	function bindDashboardEvents({ leastOpened, scope, startNextSpin }) {
 		const undoBtn = container.querySelector("#btn-undo-ball");
 		const matrixToggle = container.querySelector("#btn-toggle-matrix");
 		const matrixPanel = container.querySelector("#full-matrix-panel");
@@ -772,11 +775,12 @@ export function renderHostView(container) {
 		// Initialize realistic Rotary Bingo Cage
 		const barrel = new BingoBarrel(barrelCanvas);
 		scope.add(() => barrel.destroy());
+		scope.add(stopVibration);
 		if (currentTurn > 0) {
 			barrel.stopSpin(drawSequence[currentTurn - 1]);
 		}
 
-		function completeEjection() {
+		function completeEjection(startNext = false) {
 			if (!scope.active || !isShowingEjected) return;
 			if (ejectTimer) clearTimeout(ejectTimer);
 			ejectTimer = null;
@@ -784,7 +788,7 @@ export function renderHostView(container) {
 			wheelArena.dataset.updateBusy = "false";
 			currentTurn++;
 			saveParent();
-			render();
+			renderDashboard(startNext);
 		}
 
 		function finishSpin() {
@@ -796,7 +800,9 @@ export function renderHostView(container) {
 
 			const nextBall = drawSequence[currentTurn];
 			barrel.stopSpin(nextBall);
+			stopVibration();
 			soundManager.playBallEjected();
+			vibrateBallEjected();
 
 			if (hintEl) hintEl.textContent = "ボール確定！ (タップで次へ)";
 
@@ -821,7 +827,19 @@ export function renderHostView(container) {
 			}
 
 			// Keep the ejected ball displayed for 5 seconds (Req 3.1)
-			ejectTimer = scope.timeout(completeEjection, 5000);
+			ejectTimer = scope.timeout(() => completeEjection(), 5000);
+		}
+
+		function startSpin() {
+			if (!scope.active || currentTurn >= 75 || isSpinning || isShowingEjected) return;
+			isSpinning = true;
+			wheelArena.dataset.updateBusy = "true";
+			soundManager.unlock();
+			soundManager.playRoll(2300);
+			vibrateRoll();
+			barrel.startSpin();
+			if (hintEl) hintEl.textContent = "回転中... (タップで確定)";
+			spinTimer = scope.timeout(finishSpin, 2300);
 		}
 
 		// Slide to Action for ball drawing (Req 3.1)
@@ -829,23 +847,22 @@ export function renderHostView(container) {
 			text: "スライドしてボールを引く ➔➔",
 			disabled: currentTurn >= 75,
 			onSuccess: () => {
-				if (currentTurn >= 75 || isSpinning || isShowingEjected) return;
-				isSpinning = true;
-				wheelArena.dataset.updateBusy = "true";
-				soundManager.unlock();
-				soundManager.playRoll(1800);
-				barrel.startSpin();
-
-				if (hintEl) hintEl.textContent = "回転中... (タップで確定)";
-
-				spinTimer = scope.timeout(finishSpin, 1800);
+				if (!scope.active) return;
+				if (isShowingEjected) completeEjection(true);
+				else startSpin();
 			},
+			onTap: () => { if (scope.active && isShowingEjected) completeEjection(); },
 		});
 
 		scope.add(() => slide.destroy());
+		if (startNextSpin) startSpin();
+		slideBox.addEventListener("click", (event) => {
+			if (scope.active && !/** @type {Element} */ (event.target).closest("#slide-thumb") && isShowingEjected) completeEjection();
+		});
 
 		// Tap to skip tempo control (both during spin and during ball display)
 		wheelArena.addEventListener("click", () => {
+			if (!scope.active) return;
 			if (isSpinning) {
 				finishSpin();
 			} else if (isShowingEjected) {
@@ -855,19 +872,33 @@ export function renderHostView(container) {
 
 		// Undo
 		undoBtn.addEventListener("click", () => {
-			if (currentTurn <= 0) return;
+			if (!scope.active || currentTurn <= 0) return;
 			if (confirm("直近の出目を1手戻しますか？")) {
 				soundManager.unlock();
 				soundManager.playBallEjected();
 				currentTurn--;
 				saveParent();
 				render();
+				vibrateRestore();
 			}
 		});
 
 		// Reset Game
 		resetBtn.addEventListener("click", () => {
+			if (!scope.active) return;
+			const effectiveTurn = currentTurn + (isShowingEjected ? 1 : 0);
+			const effectiveDraws = new Set(drawSequence.slice(0, effectiveTurn));
+			const allBingo = gameMode === "mode_a" && registeredSeeds.length > 0 && registeredSeeds.every((seed) => {
+				const card = childCardsMap.get(seed);
+				if (!card) return false;
+				const opened = new Set(["2,2"]);
+				for (const cell of card.cells) {
+					if (effectiveDraws.has(cell.value)) opened.add(`${cell.row},${cell.col}`);
+				}
+				return calculateReachAndBingo(card, opened, specialRuleTurn !== null && effectiveTurn >= specialRuleTurn).isBingo;
+			});
 			if (confirm("進行中のゲームをリセットして新しく開始しますか？")) {
+				if (effectiveTurn < 75 && !allBingo && !confirm("本当にリセットしますか？現在の出目・受付・照合結果は削除され、元に戻せません。")) return;
 				clearParentState();
 				isGameStarted = false;
 				currentTurn = 0;

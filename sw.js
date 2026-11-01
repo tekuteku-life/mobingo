@@ -1,5 +1,5 @@
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
-const CACHE_NAME = 'mobingo-v1.2.0';
+const CACHE_NAME = 'mobingo-v1.3.0';
 const STATIC_ASSETS = [
 	'./',
 	'./index.html',

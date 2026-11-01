@@ -1,9 +1,8 @@
 import { renderIcon } from "../core/icons.js";
 import { soundManager } from "../core/audio.js";
-import { vibratePunch } from "../core/haptics.js";
 import { createScope } from "../core/lifecycle.js";
 
-export function createSlideAction(container, { text = "スライドして実行", onSuccess, disabled = false }) {
+export function createSlideAction(container, { text = "スライドして実行", onSuccess, onTap = () => {}, disabled = false }) {
 	const scope = createScope();
 	container.innerHTML = `
 		<div id="slide-track" class="slide-track ${disabled ? 'disabled' : ''}">
@@ -19,6 +18,7 @@ export function createSlideAction(container, { text = "スライドして実行"
 	let pointerId = null;
 	let startX = 0;
 	let ratio = 0;
+	let moved = false;
 	let resetTimer = null;
 	const distance = () => Math.max(0, track.clientWidth - thumb.clientWidth - 8);
 	function setProgress(value) {
@@ -45,6 +45,7 @@ export function createSlideAction(container, { text = "スライドして実行"
 		soundManager.unlock();
 		pointerId = event.pointerId;
 		startX = event.clientX;
+		moved = false;
 		clearTimeout(resetTimer);
 		thumb.classList.remove("animating");
 		setProgress(0);
@@ -52,18 +53,18 @@ export function createSlideAction(container, { text = "スライドして実行"
 	}
 	function onMove(event) {
 		if (event.pointerId !== pointerId) return;
+		if (Math.abs(event.clientX - startX) >= 10) moved = true;
 		const max = distance();
 		setProgress(max > 0 ? (event.clientX - startX) / max : 0);
 	}
 	function onUp(event) {
 		if (event.pointerId !== pointerId) return;
 		const success = ratio >= 0.85;
+		const tapped = !moved;
 		cancel();
 		if (success && !disabled) {
-			soundManager.playPunch();
-			vibratePunch();
 			if (typeof onSuccess === "function") onSuccess();
-		}
+		} else if (tapped && !disabled) onTap();
 	}
 	function onCancel(event) {
 		if (event.pointerId === pointerId) cancel();
