@@ -147,8 +147,10 @@ test('R-23: QRの二重生成・失敗後の再試行・閉鎖後の完了を扱
 		await page.eval(`window.qrLibrary=QRCode;window.drawQr=QRCode.toCanvas.bind(QRCode);window.qrCalls=0;window.pendingQr=[];QRCode.toCanvas=(...args)=>{qrCalls++;return new Promise((resolve,reject)=>pendingQr.push({resolve:async()=>{await drawQr(...args);resolve()},reject}));}`);
 		await page.click('#btn-share-qr'); await page.click('#btn-share-qr'); await page.click('#btn-share-qr');
 		assert.equal(await page.eval('qrCalls'), 1);
+		assert.equal(await page.eval('getComputedStyle(document.querySelector("#share-qr-canvas")).display'), 'none');
 		await page.eval('pendingQr.shift().reject(new Error("failed"))');
 		await page.wait('document.querySelector("#share-qr-status").textContent.includes("作成できません")');
+		assert.equal(await page.eval('getComputedStyle(document.querySelector("#share-qr-canvas")).display'), 'none');
 		await page.click('#btn-share-qr'); await page.click('#btn-share-qr');
 		await page.eval('pendingQr.shift().resolve()'); await page.wait('!document.querySelector("#share-qr-canvas").hidden');
 		assert.equal(await page.eval(decodeQr), `${browser.origin}/`);

@@ -816,4 +816,5 @@ html, body {
 #share-status:empty { display: none; }
 #share-qr-panel { text-align: center; }
 #share-qr-canvas { display: block; width: min(220px, 100%, calc(100dvh - 4.5rem)); height: auto; margin: 0.5rem auto 0; border-radius: 0.5rem; }
+#share-qr-canvas[hidden] { display: none; }
 .share-modal-content [hidden] { display: none; }
