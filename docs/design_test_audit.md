@@ -155,3 +155,22 @@ APIモックの結果と、実HTTP・Worker・DOMの観測を分ける。Worker�
 ### 文体・更新機能の最終実測
 
 製品`8331066`（1.2.0）、試験基盤`a2de506`で`npm run lint`はエラー0件、`npm run test:coverage`は単体62・結合23・システム8・UI103の計196/196合格、終了コード0である。22自作対象の最小Line98.14%・最小Branch97.56%で、各ファイル97%ゲートを満たした。設計・テスト・コードの最終独立レビューはいずれも`PASS`である。中断・UI94/103・CPU描画と後処理の切り分け、ファイル別表、画面例、残余境界は[review13](reviews/review13.md)に保存する。
+
+## スマートフォンの操作・フィードバック（R-22）
+
+| 対応 | 層・ファイル | assertと観測境界 |
+| --- | --- | --- |
+| 音声解除・復帰 | `unit/device`、`ui/mobile-feedback` | 無音バッファの開始、interrupted状態のresume、closed後の再生成、currentTime=0・乱数最小値でも負の回転時刻を使わないことを検証する。ブラウザのtouchend監視継続と中断後の再開要求はAudioContextスタブで観測する |
+| Android報告の4効果音 | `ui/mobile-feedback` | 実SW制御後の再読込・最初のtouchで実AudioContextを作成し、穴あけ・復元・回転・球排出の実波形をAnalyserNodeで測り、ピーク>0.01・runningをassertする。suspend後の復帰も含む。Pixel 9a実機のスピーカー出力やOSのインストール環境の証明とは区別する |
+| タップ・スライド | `ui/mobile-feedback` | 640×280・mobile/touchで成立スライド→球表示→つまみタップにより1手だけ保存する。短いドラッグで無変更、次の成立スライドで2手目保存と次球回転を検証する。75球目では追加回転しない |
+| 回転時間・スクロール | `ui/mobile-feedback`、既存`ui/host` | 2,300msの回転予約と5,000msの表示予約、実panで到達後の非ゼロscrollTopの維持、自動表示終了後のつまみのviewport内収容を検証する。既存host試験は自然経過でも1手保存を検証する |
+| 振動設定 | `unit/device`、`ui/mobile-feedback` | 穴あけ・復元・回転・球排出のAPIパターン、オフ時の停止と新規振動抑止、設定保存と再読込後のaria-pressed、非対応・例外時の継続を検証する。実際の振動は保証しない |
+| QR用途と区切り | `ui/mobile-feedback` | 320×568と640×280の双方で参加登録・照合の文言、再作成領域の上罫線1px以上・上余白8px以上を実DOMで検証する |
+| 狭い画面の共通ヘッダー | `ui/mobile-feedback` | 320/360/390pxの両役割で全操作のviewport内収容とhit-test、役割バッジ高さ25px以下、ロゴ幅27px以上を検証する。380px以下では役割バッジを省略する |
+| リセット | `ui/mobile-feedback` | 両確認それぞれの取消で保存JSON不変、承認後の削除、参加者ビンゴ・75球・モードA全員成立で1回、未達成・空受付・モードB照合済みのみでは2回を検証する。全員成立手番は製品の判定関数を使わない12ラインの独立計算である。保留中の排出球も終了条件へ含める |
+
+実機音声の原因は機種・OS・ブラウザ・ミュート設定によって異なるため、上記の初期化・復帰試験だけで症状解消を断定しない。iOS SafariのVibration API非対応は[MDNの対応データ](https://github.com/mdn/browser-compat-data/blob/main/api/Navigator.json)に基づく制約である。端末内の音声・振動、本番HTTPS、インストール済みPWAの更新は実機確認の対象である。今回の実測とレビュー範囲は[review14](reviews/review14.md)へ記録する。
+
+### R-22の最終実測
+
+1.3.0の製品ソースで`npm run lint`は終了コード0、`npm run test:coverage`はNode側94/94・UI129/129の計223/223合格、終了コード0である。22自作対象の各Line/Branchは97%以上、最小Line98.28%・最小Branch97.68%である。回転延長に対応した7.8秒待機の旧タイマー試験は別途1/1合格である。独立レビューとPixel 9a実機の音声・振動確認は未実施である。[実測表と残余境界](reviews/review14.md)を参照する。
