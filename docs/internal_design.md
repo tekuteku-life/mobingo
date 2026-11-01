@@ -108,3 +108,11 @@ packageとlockルート、版定数、SWキャッシュを同じ製品版へ同�
 ClipboardとWeb Shareの処理中フラグで連打を防ぎ、await前にAPIを呼ぶ。成功・失敗・finallyのDOM反映は現在のscopeがactiveの場合だけ行う。QR生成は独立したbusy/ready状態を持ち、非表示Canvasへ生成後、activeを確認して表示Canvasへ転写する。閉鎖後にライブラリが完了しても閉じた画面を描き換えない。Escapeリスナーもscopeに属し、終了時に解除して以前の接続中フォーカス先へ戻す。
 
 新モジュールをSWのprecacheへ含め、package・lockルート・実行版・SWキャッシュを1.4.0へ同期する。共有はゲーム生成・保存形式を変更しない。APIの制約は[Clipboard.writeText](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText)と[Navigator.share](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share)に基づく。実際の共有メニューと配送はOS依存であり、APIスタブとは区別する。
+
+## 11. 実機フィードバックの切り分け（I-19／R-24）
+
+`SoundManager.getStatus()`は対応・ミュート・context状態・直近のエラー名を返す。通常のresume拒否を記録し、旧contextのPromise完了で現在の結果を上書きしない。`testPlayback()`は同期的にresumeを要求し、成功を待って確認音を生成する。AbortSignal・2秒の期限・ミュート化・context同一性を照合し、終了時に期限とabortリスナーを解放する。
+
+振動は共通のAPI境界でtrue/false/非対応/例外を分類し、通常操作の直近結果も保持する。`hapticsManager.testVibration()`は設定を尊重した200msの要求である。APIのtrueは物理振動を証明しない。
+
+`license-modal.js`が確認操作と表示を所有する。音声確認中は連打を抑止し、scope破棄でabortする。確認情報はtextarea.valueで描画し、ゲームデータを参照しない。contextmenuは当該欄で伝播を止め、ページ全体の禁止設定が手動コピーを妨げないようにする。版とSWキャッシュは1.4.1へ同期する。
