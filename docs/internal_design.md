@@ -97,6 +97,14 @@ PWAマニフェストの`orientation`は`any`とし、インストール時に�
 
 SWはインストール時のskipWaitingを廃止し、初回は通常のライフサイクルで有効化する。アプリ範囲のwindow clientから対象版が一致する適用メッセージを受けた場合だけskipWaitingする。GET_VERSIONは送信元のMessagePortへ自身のキャッシュ版を返す。precacheは`cache:reload`でブラウザの古いHTTP応答を避け、実行時の検索・navigation fallbackは自身の版のCacheに限定する。activationは旧Mobingo Cacheだけを削除してclaimする。新しい資産の取得失敗では旧版を有効なまま保つ。
 
-packageとlockルート、版定数、SWキャッシュを1.2.0へ同期する。`scripts/check_version.js`を静的検査へ加え、不一致を検出する。開催者の樽に抽選中属性を設け、更新適用前の受付/抽選ガードに使う。カード生成v1・保存形式は変更しない。
+packageとlockルート、版定数、SWキャッシュを同じ製品版へ同期する。`scripts/check_version.js`を静的検査へ加え、不一致を検出する。開催者の樽に抽選中属性を設け、更新適用前の受付/抽選ガードに使う。カード生成v1・保存形式は変更しない。
 
 根拠は[Service Worker updateの仕様](https://w3c.github.io/ServiceWorker/#service-worker-registration-update)、[skipWaitingの仕様](https://w3c.github.io/ServiceWorker/#service-worker-global-scope-skipwaiting)である。実装可能性はローカルChromiumの実Worker更新試験で確認する。
+
+## 10. URL共有（I-18／R-23）
+
+`js/views/share-modal.js`へ共有UIと生存期間を集約する。URLは現在のlocationから生成し、search/hashを空にする。URLをinnerHTMLへ埋め込まずinput.valueとAPI引数で渡す。`app.js`は共通ヘッダーからモーダルを開き、画面再生成前に破棄関数を実行する。同時表示は1つとする。
+
+ClipboardとWeb Shareの処理中フラグで連打を防ぎ、await前にAPIを呼ぶ。成功・失敗・finallyのDOM反映は現在のscopeがactiveの場合だけ行う。QR生成は独立したbusy/ready状態を持ち、非表示Canvasへ生成後、activeを確認して表示Canvasへ転写する。閉鎖後にライブラリが完了しても閉じた画面を描き換えない。Escapeリスナーもscopeに属し、終了時に解除して以前の接続中フォーカス先へ戻す。
+
+新モジュールをSWのprecacheへ含め、package・lockルート・実行版・SWキャッシュを1.4.0へ同期する。共有はゲーム生成・保存形式を変更しない。APIの制約は[Clipboard.writeText](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText)と[Navigator.share](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share)に基づく。実際の共有メニューと配送はOS依存であり、APIスタブとは区別する。
