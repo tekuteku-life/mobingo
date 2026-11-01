@@ -105,7 +105,7 @@ test('R-15: Wake Lock取得・解放・表示復帰・拒否', async () => {
 });
 
 test('R-15: 全SVGアイコンと既定値を描画する', () => {
-	for (const name of ['volume','volume-x','refresh','shield','smartphone','users','sparkles','dices','arrow-right','trophy','bell','star','qrcode','close','check','camera','keyboard','tv','flame','undo','award','unknown']) {
+	for (const name of ['share','volume','volume-x','refresh','shield','smartphone','users','sparkles','dices','arrow-right','trophy','bell','star','qrcode','close','check','camera','keyboard','tv','flame','undo','award','unknown']) {
 		assert.match(renderIcon(name), /^<svg .*width="20"/);
 		assert.match(renderIcon(name, 32, 'icon'), /width="32".*class="icon"/);
 	}
