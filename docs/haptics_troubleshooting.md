@@ -2,7 +2,11 @@
 
 ## 確認済みの範囲
 
-Pixel 9aのインストール済みPWAと通常Chromeタブで振動しない。アプリの振動設定はオン、APIは対応、確認操作の要求結果はrequestedである。Chrome公式の500ms振動サンプルでも振動しない。消音・集中モード解除、通常・強力なバッテリーセーバーの両方オフは確認済みである。追加回答では、メディア以外のハプティクスをオフにしている。以前の「強度最大」という回答を、操作時の振動も有効であるという意味には扱わない。
+当初、Pixel 9aのインストール済みPWAと通常Chromeタブで振動しないとの報告があった。アプリの振動設定はオン、APIは対応、確認操作の要求結果はrequestedである。Chrome公式の500ms振動サンプルでも振動しない。消音・集中モード解除、通常・強力なバッテリーセーバーの両方オフは確認済みである。追加回答では、メディア以外のハプティクスをオフにしている。以前の「強度最大」という回答を、操作時の振動も有効であるという意味には扱わない。
+
+2026年11月3日の実機確認で、メディアのバイブレーションのオン・オフでは変化せず、タッチフィードバックのオン・オフで振動が変わったとの回答を得た。今回の端末での無反応は、操作用の振動が設定で抑制されていたことに対応する。OSの内部ログは採取していないため、抑制状態を表す内部statusまで直接観測したとは扱わない。
+
+メディア振動は音楽・映像などの用途、タッチフィードバックはタップ・ドラッグなどの操作用途に対する別の強度・有効設定である。今回のChrome経路では短いパルスがTOUCH用途へ分類されるため、Mobingoでは端末のタッチフィードバックとアプリ内の振動の両方を有効にする。現在使用するWeb APIにはAndroidの用途をMEDIAへ指定する引数はない。
 
 ブラウザーの受付結果から物理振動やOSの許可を判断しない。JavaScriptはAndroidの抑制理由、VIBRATE権限、AppOpsの状態を取得できず、Androidの振動用途や制限を変更することもできない。
 
@@ -14,11 +18,11 @@ Chromiumの[Android側](https://github.com/chromium/chromium/blob/main/services/
 
 Androidの[VibratorManagerService](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/services/core/java/com/android/server/vibrator/VibratorManagerService.java)は短い効果をTOUCH用途へ補正する。200msの確認と公式サンプルの500msは、AOSPの長さ・セグメント条件ではこの対象となる。Chromiumは複数回の振動もパルスごとに要求するため、樽回し全体の長さだけで用途を判断しない。
 
-[VibrationSettings](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/services/core/java/com/android/server/vibrator/VibrationSettings.java)は前面状態、用途別強度、グローバル振動、電力制限などを判定する。未補正のUNKNOWN用途にはメディア強度を使うが、短い操作振動を一律にメディア設定の問題とは扱わない。[AppOps判定](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/services/core/java/com/android/server/vibrator/VibratorManagerService.java)も独立して存在する。これらはAOSPの実装上の候補であり、Pixel実機で原因を観測した結果ではない。
+[VibrationSettings](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/services/core/java/com/android/server/vibrator/VibrationSettings.java)は前面状態、用途別強度、グローバル振動、電力制限などを判定する。未補正のUNKNOWN用途にはメディア強度を使うが、短い操作振動を一律にメディア設定の問題とは扱わない。[AppOps判定](https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/services/core/java/com/android/server/vibrator/VibratorManagerService.java)も独立して存在する。用途分類とタッチ設定の関係は実機の切替結果と整合する。他の抑制条件をこの端末の原因として観測した結果ではない。
 
-## 次に必要な観測
+## 確認結果と再発時の切り分け
 
-メディア以外がオフという実機設定と、短い振動がTOUCHへ分類される実装は整合する。まず一時的に触覚フィードバックをオンにし、既存の200ms確認が振動するかを確認する。結果待ちであるため原因確定とはしない。長い振動へ勝手に変更して設定を迂回しない。
+メディア以外がオフという設定と短い振動のTOUCH分類を調べ、タッチフィードバックの切替により実際の振動が変わることを利用者が確認した。今回の設定由来の無反応は切り分け済みである。長い振動へ勝手に変更して設定を迂回しない。
 
 触覚フィードバックをオンにしても出ない場合は、ホーム画面のアイコン長押しなどChrome以外の操作振動と、下記のOS記録を確認する。着信・アラームは用途と優先度が異なるため、操作振動の代替確認にはしない。
 
