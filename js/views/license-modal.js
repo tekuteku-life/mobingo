@@ -1,6 +1,7 @@
 import { createScope } from "../core/lifecycle.js";
 import { APP_VERSION } from "../core/version.js";
 import { renderIcon } from "../core/icons.js";
+import { hapticsManager } from "../core/haptics.js";
 
 let disposeLicenseModal = () => {};
 
@@ -34,6 +35,19 @@ export function showLicenseModal(updateManager = null) {
 						<button id="btn-apply-update" class="btn-primary" hidden>更新して再読み込み</button>
 					</div>
 					<p class="update-help">更新の確認には通信が必要です。保存済みのゲーム状態は更新後も引き継がれます。</p>
+				</section>
+				<section class="app-update-panel" aria-labelledby="feedback-heading">
+					<h2 id="feedback-heading">振動の動作確認</h2>
+					<p>確認ボタンを押して、実際に振動するかお確かめください。</p>
+					<div class="update-actions">
+						<button id="btn-test-vibration" class="btn-secondary">振動を試す</button>
+					</div>
+					<p id="feedback-vibration-status" role="status" aria-live="polite"></p>
+					<p class="update-help">ブラウザーが要求を受け付けても、端末側で振動が抑制される場合があります。</p>
+					<details>
+						<summary>確認情報（長押しでコピー）</summary>
+						<textarea id="feedback-details" class="name-input feedback-details" aria-label="振動の確認情報" rows="7" readonly></textarea>
+					</details>
 				</section>
 				<!-- Trademark Notice -->
 				<div style="background:rgba(30,41,59,0.8); border:1px solid rgba(245,158,11,0.4); border-radius:0.75rem; padding:0.75rem;">
@@ -94,6 +108,37 @@ export function showLicenseModal(updateManager = null) {
 	else renderUpdate({ phase: "unsupported", message: "この画面では更新確認を利用できません。" });
 	checkButton.addEventListener("click", () => { if (scope.active) updateManager?.check(); });
 	applyButton.addEventListener("click", () => { if (scope.active) updateManager?.apply(); });
+	const vibrationStatus = /** @type {HTMLElement} */ (modal.querySelector("#feedback-vibration-status"));
+	const details = /** @type {HTMLTextAreaElement} */ (modal.querySelector("#feedback-details"));
+	function refreshDetails() {
+		details.value = JSON.stringify({
+			version: APP_VERSION,
+			browser: navigator.userAgent,
+			displayMode: window.matchMedia("(display-mode: standalone)").matches ? "standalone" : "browser",
+			secureContext: window.isSecureContext,
+			visibility: document.visibilityState,
+			userActivated: navigator.userActivation?.hasBeenActive ?? null,
+			haptics: hapticsManager.getStatus(),
+		}, null, 2);
+	}
+	refreshDetails();
+	scope.timeout(refreshDetails, 0);
+	details.addEventListener("contextmenu", event => event.stopPropagation());
+	details.addEventListener("click", () => details.select());
+	modal.querySelector("#btn-test-vibration").addEventListener("click", () => {
+		if (!scope.active) return;
+		const result = hapticsManager.testVibration();
+		const messages = {
+			requested: "ブラウザーは振動要求を受け付けました。実際に振動するかご確認ください。",
+			rejected: "ブラウザーは振動要求を受け付けませんでした。端末・ブラウザーの設定をご確認ください。",
+			unsupported: "このブラウザーは振動機能に対応していません。",
+			disabled: "アプリの振動がオフです。ヘッダーでオンにしてからお試しください。",
+			failed: "振動要求でエラーが発生しました。",
+		};
+		vibrationStatus.textContent = messages[result.state];
+		vibrationStatus.dataset.state = result.state;
+		refreshDetails();
+	});
 	const close = () => scope.dispose();
 	modal.querySelector("#close-license-btn").addEventListener("click", close);
 	modal.querySelector("#close-license-bottom-btn").addEventListener("click", close);

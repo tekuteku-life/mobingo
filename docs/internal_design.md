@@ -108,3 +108,11 @@ packageとlockルート、版定数、SWキャッシュを同じ製品版へ同�
 ClipboardとWeb Shareの処理中フラグで連打を防ぎ、await前にAPIを呼ぶ。成功・失敗・finallyのDOM反映は現在のscopeがactiveの場合だけ行う。QR生成は独立したbusy/ready状態を持ち、非表示Canvasへ生成後、activeを確認して表示Canvasへ転写する。閉鎖後にライブラリが完了しても閉じた画面を描き換えない。Escapeリスナーもscopeに属し、終了時に解除して以前の接続中フォーカス先へ戻す。
 
 新モジュールをSWのprecacheへ含め、package・lockルート・実行版・SWキャッシュを1.4.0へ同期する。共有はゲーム生成・保存形式を変更しない。APIの制約は[Clipboard.writeText](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText)と[Navigator.share](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share)に基づく。実際の共有メニューと配送はOS依存であり、APIスタブとは区別する。
+
+## 11. 振動の切り分け（I-19／R-24）
+
+振動は共通のAPI境界で戻り値false・非対応・例外・要求受付を分類し、通常操作の直近結果も保持する。`hapticsManager.getStatus()`は設定・対応・直近結果を返す。`testVibration()`は設定を尊重した200msの同期要求である。要求受付は物理振動を証明せず、OSの拒否理由も得られない。
+
+`license-modal.js`が確認操作と表示を所有する。scope破棄後の操作は無効である。確認情報はtextarea.valueで描画し、ゲームデータを参照しない。contextmenuは当該欄で伝播を止め、ページ全体の禁止設定が手動コピーを妨げないようにする。
+
+既に配信された版から削除内容が確実に切り替わるよう、版とSWキャッシュは1.4.2へ同期する。音声処理はmainの実装を保持する。
